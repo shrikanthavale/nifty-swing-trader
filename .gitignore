@@ -11,6 +11,9 @@ request_token*
 # src/main/java/**/data/ (it silently untracked the data package!)
 /data/
 
+# Generated backtest reports
+/reports/
+
 # Build
 target/
 *.class

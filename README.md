@@ -24,7 +24,8 @@ The core design rule: **the strategy and risk code that runs live is the identic
 - [x] Kite auth flow: daily login → request-token auto-capture → token exchange (`auth` command)
 - [x] Instruments dump + dated NIFTY 100 universe (`instruments` / `universe` commands)
 - [x] Incremental EOD candle downloader with stale-data guard (`download` command)
-- [ ] **Phase 1:** backtester + first honest report ← *currently here*
+- [x] Backtester (same Strategy/RiskManager as live, next-open fills, full cost model) + static HTML report (`backtest` command)
+- [ ] **Phase 1 finale:** download real 2015→present data, run the first honest backtest ← *currently here*
 - [ ] Phase 2: strategy research & validation
 - [ ] Phase 3: paper trading (live pipeline, no real orders)
 - [ ] Phase 4: live at half size

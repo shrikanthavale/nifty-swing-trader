@@ -85,6 +85,24 @@ public final class CandleRepository {
         return candles;
     }
 
+    /** Every symbol with stored candles, ascending history each — backtester input. */
+    public java.util.Map<String, List<Candle>> allCandles() throws SQLException {
+        java.util.Map<String, List<Candle>> bySymbol = new java.util.HashMap<>();
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT symbol, date, open, high, low, close, volume
+                FROM candles ORDER BY symbol, date""");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                Candle c = new Candle(
+                        rs.getString(1), LocalDate.parse(rs.getString(2)),
+                        rs.getDouble(3), rs.getDouble(4), rs.getDouble(5),
+                        rs.getDouble(6), rs.getLong(7));
+                bySymbol.computeIfAbsent(c.symbol(), s -> new ArrayList<>()).add(c);
+            }
+        }
+        return bySymbol;
+    }
+
     public int countFor(String symbol) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT COUNT(*) FROM candles WHERE symbol = ?")) {

@@ -34,9 +34,12 @@ UI decision (July 2026): no web UI. Backtest reports = generated static HTML fil
 
 Also done (July 2026): **candle downloader.** `CandleRepository` (upsert, lastDateFor, cutoff-dated `candlesUpTo` ready for MarketSnapshot), `HistoricalSource` interface (fake in tests → downloader logic tested offline), `KiteHistoricalSource` (Kite impl; parses "+0530" timestamps; needs paid Connect plan), `CandleDownloader` (incremental per-symbol fetch resuming after last stored date, 1800-day chunks, 350ms throttle for Kite's 3 req/s limit, default start 2015-01-01, stale-data assertion — `download` command exits 2 and says DO NOT TRADE on staleness — and >20% close-to-close discontinuity flags for corporate-action review). `expectedTradingDate` is a weekday approximation: NSE holidays report as stale (safe but noisy) — trading calendar still a TODO.
 
+Also done (July 2026): **backtester + HTML report.** `Backtester` replays the daily loop (signals at close D → fills at D+1 OPEN through `CostModel`; exits fill before entries; halted-symbol exits stay queued, halted entries drop; trading calendar = the data's own dates). `MarketSnapshot.ofPresorted` added (binary-search cutoff, no copying — semantics identical to `of`, tested). **Kill-switch decision (Shrikant, July 2026):** backtests simulate the manual review as a *cooling-off reset* — after a 6% drawdown firing, entries stay blocked 10 trading days, then the equity peak resets to current equity; `RiskManager` untouched (backtester only controls the equityPeak argument). Firings are counted and reported. `BacktestStats` (expectancy, win rate, maxDD, CAGR, profit factor, cost drag, half-split, acceptance-bar booleans), `HtmlReport` (self-contained static HTML: stat tiles, acceptance checklist, SVG equity+drawdown charts with crosshair tooltip, full trades table, light+dark). `backtest [start] [end]` command writes reports/backtest-*.html (gitignored). Verified end-to-end on synthetic GBM data: random walk + costs → negative expectancy, exactly as it should be.
+
 Next, in order:
-1. `Backtester`: daily loop as specced in its javadoc, producing a static HTML report (equity curve, expectancy, max DD, cost drag).
-2. Run PullbackStrategy 2015→present; report honestly even (especially) if it fails the acceptance bar. Requires upgrading the Kite app to the Connect plan (₹500/30 days) to actually fetch candles.
+1. Upgrade the Kite app to the Connect plan (₹500/30 days), run `instruments` + `universe` + `download` for 2015→present real candles.
+2. Run the real backtest of PullbackStrategy; report honestly even (especially) if it fails the acceptance bar.
+3. Phase 2 begins: sensitivity sweep (parameter plateau), in/out-of-sample split, implement BreakoutStrategy.
 
 ## Conventions
 

@@ -44,7 +44,10 @@ public class Main {
             case "instruments" -> instruments(args.length > 1 ? args[1] : DEFAULT_CONFIG);
             case "universe" -> universe(args.length > 1 ? args[1] : null);
             case "download" -> download(args.length > 1 ? args[1] : DEFAULT_CONFIG);
-            case "backtest", "signals", "paper", "live" ->
+            case "backtest" -> backtest(
+                    args.length > 1 ? LocalDate.parse(args[1]) : null,
+                    args.length > 2 ? LocalDate.parse(args[2]) : null);
+            case "signals", "paper", "live" ->
                     System.out.println("'" + cmd + "' is not implemented yet — see docs/blueprint.md §8 roadmap.");
             default -> System.out.println("""
                     nifty-swing-trader — personal swing trading system (see docs/blueprint.md)
@@ -56,7 +59,9 @@ public class Main {
                                                  ind_nifty100list.csv if a path is given)
                       download [config-path]     incremental EOD candle fetch for the universe
                                                  (needs the paid Connect plan for historical data)
-                      backtest|signals|paper|live   not implemented yet""");
+                      backtest [start] [end]     run PullbackStrategy over stored candles and
+                                                 write reports/backtest-*.html
+                      signals|paper|live         not implemented yet""");
         }
     }
 
@@ -116,6 +121,56 @@ public class Main {
                 System.exit(2);
             }
         }
+    }
+
+    private static void backtest(LocalDate startArg, LocalDate endArg) throws Exception {
+        AppConfig config = AppConfig.load(DEFAULT_CONFIG);
+        java.util.Map<String, List<in.shrikant.swingtrader.data.Candle>> candles;
+        try (Connection conn = Database.open(config.dbPath())) {
+            candles = new CandleRepository(conn).allCandles();
+        }
+        if (candles.isEmpty()) {
+            System.err.println("No candles in " + config.dbPath()
+                    + " — run `instruments`, `universe`, then `download` first.");
+            System.exit(2);
+            return;
+        }
+        LocalDate dataEnd = candles.values().stream()
+                .map(list -> list.get(list.size() - 1).date())
+                .max(LocalDate::compareTo).orElseThrow();
+        LocalDate start = startArg != null ? startArg
+                : in.shrikant.swingtrader.data.CandleDownloader.DEFAULT_START;
+        LocalDate end = endArg != null ? endArg : dataEnd;
+
+        var strategy = new in.shrikant.swingtrader.signal.strategies.PullbackStrategy();
+        var backtester = new in.shrikant.swingtrader.backtest.Backtester(
+                strategy, new in.shrikant.swingtrader.risk.RiskManager(),
+                new in.shrikant.swingtrader.backtest.CostModel(), config.startingCapital());
+
+        System.out.println("Backtesting " + strategy.name() + " " + start + " → " + end
+                + " on " + candles.size() + " symbols ...");
+        var result = backtester.run(candles, start, end);
+        var stats = in.shrikant.swingtrader.backtest.BacktestStats.from(result);
+
+        System.out.println(in.shrikant.swingtrader.backtest.Backtester.summaryLine(result));
+        System.out.printf(java.util.Locale.ROOT,
+                "trades=%d winRate=%.1f%% expectancy=₹%.0f/trade (%.2f%%) maxDD=%.1f%% "
+                        + "CAGR=%.1f%% costDrag=₹%.0f halves=₹%.0f/₹%.0f%n",
+                stats.tradeCount(), stats.winRate() * 100, stats.expectancy(),
+                stats.expectancyPct() * 100, stats.maxDrawdown() * 100,
+                stats.cagr() * 100, stats.totalCharges(),
+                stats.firstHalfPnl(), stats.secondHalfPnl());
+        System.out.println("Acceptance bar: expectancy "
+                + (stats.meetsExpectancyBar() ? "PASS" : "FAIL")
+                + " | trades>=150 " + (stats.meetsTradeCountBar() ? "PASS" : "FAIL")
+                + " | both halves " + (stats.meetsBothHalvesBar() ? "PASS" : "FAIL"));
+
+        Path reportDir = Path.of("reports");
+        java.nio.file.Files.createDirectories(reportDir);
+        Path report = reportDir.resolve("backtest-" + strategy.name() + "-" + end + ".html");
+        java.nio.file.Files.writeString(report,
+                in.shrikant.swingtrader.backtest.HtmlReport.render(result, stats));
+        System.out.println("Report written to " + report.toAbsolutePath());
     }
 
     private static void universe(String csvPath) throws Exception {

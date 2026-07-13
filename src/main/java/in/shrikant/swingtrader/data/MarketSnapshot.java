@@ -34,6 +34,32 @@ public final class MarketSnapshot {
         return new MarketSnapshot(filtered, asOf);
     }
 
+    /**
+     * Fast path for the backtester, which builds thousands of snapshots over
+     * the SAME candle lists: input must already be ascending by date, and the
+     * cutoff is applied via binary search + subList views (no copying).
+     * Semantics are identical to {@link #of} — verified by a unit test.
+     */
+    public static MarketSnapshot ofPresorted(Map<String, List<Candle>> sortedBySymbol,
+                                             LocalDate asOf) {
+        Map<String, List<Candle>> filtered = new java.util.HashMap<>();
+        for (Map.Entry<String, List<Candle>> e : sortedBySymbol.entrySet()) {
+            filtered.put(e.getKey(), headUpTo(e.getValue(), asOf));
+        }
+        return new MarketSnapshot(Collections.unmodifiableMap(filtered), asOf);
+    }
+
+    /** The prefix of {@code sorted} with date <= asOf (binary search, view). */
+    private static List<Candle> headUpTo(List<Candle> sorted, LocalDate asOf) {
+        int lo = 0, hi = sorted.size();
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (sorted.get(mid).date().isAfter(asOf)) hi = mid;
+            else lo = mid + 1;
+        }
+        return sorted.subList(0, lo);
+    }
+
     public LocalDate asOf() {
         return asOf;
     }

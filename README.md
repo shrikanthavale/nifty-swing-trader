@@ -21,6 +21,7 @@ The core design rule: **the strategy and risk code that runs live is the identic
 
 - [x] Blueprint (docs/blueprint.md)
 - [x] Project skeleton: strategy/risk/cost-model core with unit tests
+- [x] Kite auth flow: daily login → request-token auto-capture → token exchange (`auth` command)
 - [ ] **Phase 1:** data downloader + backtester ← *currently here*
 - [ ] Phase 2: strategy research & validation
 - [ ] Phase 3: paper trading (live pipeline, no real orders)
@@ -32,11 +33,29 @@ The core design rule: **the strategy and risk code that runs live is the identic
 Requires Java 21+ and Maven.
 
 ```bash
-mvn test                 # runs unit tests (cost model, etc.)
+mvn test                 # runs unit tests (cost model, auth, etc.)
 mvn package              # builds target/nifty-swing-trader-*.jar
 cp config/config.properties.example config/config.properties
 # fill in your Kite Connect api_key/secret — NEVER commit this file
 ```
+
+### Daily Kite login
+
+Kite Connect access tokens expire every morning, so each trading day starts
+with a ~30-second login ritual (fully unattended token generation violates
+Zerodha's ToS):
+
+```bash
+java -jar target/nifty-swing-trader-*.jar auth
+```
+
+This prints (and tries to open) the Kite login URL; you log in on Zerodha's
+page, and a one-shot local listener on `http://127.0.0.1:5000/callback`
+catches the redirect and exchanges the request token automatically. The day's
+access token lands in `config/access_token.properties` (gitignored). Your
+Kite app at [developers.kite.trade](https://developers.kite.trade) must have
+exactly `http://127.0.0.1:5000/callback` registered as its Redirect URL
+(port configurable via `kite.redirect_port`).
 
 ## Repository layout
 

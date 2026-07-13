@@ -26,14 +26,15 @@ A personal (not commercial) short-swing trading system for the Indian stock mark
 
 ## Current state / next steps (Phase 1, blueprint §8)
 
-Done: blueprint, compiling skeleton, `CostModel` with passing unit tests, `Indicators` (SMA/RSI/ATR), `PullbackStrategy`, `RiskManager`, SQLite schema bootstrap.
+Done: blueprint, compiling skeleton, `CostModel` with passing unit tests, `Indicators` (SMA/RSI/ATR), `PullbackStrategy`, `RiskManager`, SQLite schema bootstrap, **Kite auth flow** (July 2026): `auth` package with `KiteAuthenticator` (daily login orchestration; reuses today's token only after verifying it via `getProfile()`), `RequestTokenListener` (one-shot JDK HttpServer on `http://127.0.0.1:{kite.redirect_port}/callback` auto-capturing the request token; manual-paste fallback), and `TokenStore` (persists the daily token to `config/access_token.properties`, gitignored; freshness = same IST calendar day + same api_key). Wired as the `auth` subcommand in `Main`. Unit-tested offline; **not yet exercised against the real Kite API** — Shrikant hadn't created his Kite Connect app as of July 13, 2026, so treat the first real login as a test. The app's Redirect URL must be registered as `http://127.0.0.1:5000/callback` (matching `kite.redirect_port`).
+
+UI decision (July 2026): no web UI. Backtest reports = generated static HTML files with the equity curve; Phase 3 monitoring = Telegram/email push; a Javalin dashboard is a possible much-later add-on.
 
 Next, in order:
-1. Kite auth flow (`AppConfig` exists; add login URL + request-token exchange).
-2. Instruments dump → `instruments` table; NIFTY 100 constituents → `constituents` table.
-3. `CandleDownloader`: incremental EOD fetch with the stale-data assertion (blueprint §9).
-4. `Backtester`: daily loop as specced in its javadoc, producing a report (equity curve, expectancy, max DD, cost drag).
-5. Run PullbackStrategy 2015→present; report honestly even (especially) if it fails the acceptance bar.
+1. Instruments dump → `instruments` table; NIFTY 100 constituents → `constituents` table.
+2. `CandleDownloader`: incremental EOD fetch with the stale-data assertion (blueprint §9).
+3. `Backtester`: daily loop as specced in its javadoc, producing a static HTML report (equity curve, expectancy, max DD, cost drag).
+4. Run PullbackStrategy 2015→present; report honestly even (especially) if it fails the acceptance bar.
 
 ## Conventions
 

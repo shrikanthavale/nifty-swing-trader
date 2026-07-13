@@ -6,6 +6,14 @@
 kite.api_key=YOUR_API_KEY
 kite.api_secret=YOUR_API_SECRET
 
+# Local port that catches Zerodha's post-login redirect during the daily
+# auth ritual. Register  http://127.0.0.1:5000/callback  as the Redirect URL
+# of your Kite app (must match this port).
+kite.redirect_port=5000
+
+# Where the daily access token is stored (gitignored via "access_token*")
+kite.token_path=config/access_token.properties
+
 # Local SQLite database file
 db.path=swingtrader.db
 

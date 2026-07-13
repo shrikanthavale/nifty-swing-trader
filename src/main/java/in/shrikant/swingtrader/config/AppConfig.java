@@ -12,7 +12,9 @@ public record AppConfig(
         String kiteApiKey,
         String kiteApiSecret,
         String dbPath,
-        double startingCapital
+        double startingCapital,
+        int kiteRedirectPort,
+        String tokenPath
 ) {
     public static AppConfig load(String path) throws IOException {
         Properties p = new Properties();
@@ -23,7 +25,9 @@ public record AppConfig(
                 required(p, "kite.api_key"),
                 required(p, "kite.api_secret"),
                 p.getProperty("db.path", "swingtrader.db"),
-                Double.parseDouble(p.getProperty("capital.starting", "100000"))
+                Double.parseDouble(p.getProperty("capital.starting", "100000")),
+                Integer.parseInt(p.getProperty("kite.redirect_port", "5000")),
+                p.getProperty("kite.token_path", "config/access_token.properties")
         );
     }
 

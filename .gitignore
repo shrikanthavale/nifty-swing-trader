@@ -1,0 +1,27 @@
+# NEVER commit credentials — this is a PUBLIC repo
+config/config.properties
+*.env
+access_token*
+request_token*
+
+# Local data
+*.db
+*.db-journal
+data/
+
+# Build
+target/
+*.class
+*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db

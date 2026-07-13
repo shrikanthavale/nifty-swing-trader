@@ -1,0 +1,13 @@
+# Copy this file to config/config.properties and fill in your values.
+# config/config.properties is gitignored — NEVER commit real credentials.
+
+# From your Kite Connect app at developers.kite.trade (₹500/month plan
+# needed for historical data)
+kite.api_key=YOUR_API_KEY
+kite.api_secret=YOUR_API_SECRET
+
+# Local SQLite database file
+db.path=swingtrader.db
+
+# Starting capital in rupees (used for backtests and sizing)
+capital.starting=100000

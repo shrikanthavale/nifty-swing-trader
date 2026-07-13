@@ -7,7 +7,9 @@ request_token*
 # Local data
 *.db
 *.db-journal
-data/
+# root-level data dir only — a bare "data/" would also ignore
+# src/main/java/**/data/ (it silently untracked the data package!)
+/data/
 
 # Build
 target/

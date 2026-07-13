@@ -28,13 +28,14 @@ A personal (not commercial) short-swing trading system for the Indian stock mark
 
 Done: blueprint, compiling skeleton, `CostModel` with passing unit tests, `Indicators` (SMA/RSI/ATR), `PullbackStrategy`, `RiskManager`, SQLite schema bootstrap, **Kite auth flow** (July 2026): `auth` package with `KiteAuthenticator` (daily login orchestration; reuses today's token only after verifying it via `getProfile()`), `RequestTokenListener` (one-shot JDK HttpServer on `http://127.0.0.1:{kite.redirect_port}/callback` auto-capturing the request token; manual-paste fallback), and `TokenStore` (persists the daily token to `config/access_token.properties`, gitignored; freshness = same IST calendar day + same api_key). Wired as the `auth` subcommand in `Main`. Unit-tested offline; **not yet exercised against the real Kite API** — Shrikant hadn't created his Kite Connect app as of July 13, 2026, so treat the first real login as a test. The app's Redirect URL must be registered as `http://127.0.0.1:5000/callback` (matching `kite.redirect_port`).
 
+Also done (July 2026): **instruments + universe pipeline.** `InstrumentSync` pulls Kite's NSE dump (cash-equity rows) into the `instruments` table via `InstrumentRepository` (symbol → instrument_token, needed by the historical API). `ConstituentsCsv` (quote-aware parser for NSE's ind_nifty100list.csv, rejects HTML error pages), `ConstituentsDownloader` (NSE archives URL with browser headers; manual-CSV fallback since NSE bot protection is moody), `ConstituentsRepository` (dated membership intervals [from_date, to_date), snapshot diff/apply, idempotent), `DbUniverse` implements `Universe.membersOn(date)`. Commands: `instruments`, `universe [csv-path]`. v1 seeds only the current list — history before the first snapshot has survivorship bias (documented, blueprint §6.3). Also fixed a `.gitignore` bug: bare `data/` was silently untracking `src/main/java/**/data/` — now `/data/`; the data package files needed a `git add` after this fix.
+
 UI decision (July 2026): no web UI. Backtest reports = generated static HTML files with the equity curve; Phase 3 monitoring = Telegram/email push; a Javalin dashboard is a possible much-later add-on.
 
 Next, in order:
-1. Instruments dump → `instruments` table; NIFTY 100 constituents → `constituents` table.
-2. `CandleDownloader`: incremental EOD fetch with the stale-data assertion (blueprint §9).
-3. `Backtester`: daily loop as specced in its javadoc, producing a static HTML report (equity curve, expectancy, max DD, cost drag).
-4. Run PullbackStrategy 2015→present; report honestly even (especially) if it fails the acceptance bar.
+1. `CandleDownloader`: incremental EOD fetch with the stale-data assertion (blueprint §9).
+2. `Backtester`: daily loop as specced in its javadoc, producing a static HTML report (equity curve, expectancy, max DD, cost drag).
+3. Run PullbackStrategy 2015→present; report honestly even (especially) if it fails the acceptance bar.
 
 ## Conventions
 

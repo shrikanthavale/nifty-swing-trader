@@ -30,7 +30,9 @@ public final class Database {
                 CREATE TABLE IF NOT EXISTS instruments (
                     symbol TEXT PRIMARY KEY,
                     instrument_token INTEGER NOT NULL,
-                    exchange TEXT NOT NULL DEFAULT 'NSE'
+                    exchange TEXT NOT NULL DEFAULT 'NSE',
+                    name TEXT,
+                    synced_on TEXT
                 )""");
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS constituents (

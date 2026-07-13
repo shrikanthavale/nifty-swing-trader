@@ -22,7 +22,8 @@ The core design rule: **the strategy and risk code that runs live is the identic
 - [x] Blueprint (docs/blueprint.md)
 - [x] Project skeleton: strategy/risk/cost-model core with unit tests
 - [x] Kite auth flow: daily login → request-token auto-capture → token exchange (`auth` command)
-- [ ] **Phase 1:** data downloader + backtester ← *currently here*
+- [x] Instruments dump + dated NIFTY 100 universe (`instruments` / `universe` commands)
+- [ ] **Phase 1:** candle downloader + backtester ← *currently here*
 - [ ] Phase 2: strategy research & validation
 - [ ] Phase 3: paper trading (live pipeline, no real orders)
 - [ ] Phase 4: live at half size

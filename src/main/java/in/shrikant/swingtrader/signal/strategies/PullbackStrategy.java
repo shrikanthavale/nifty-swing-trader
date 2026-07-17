@@ -18,23 +18,47 @@ import java.util.List;
  * Exit:   close > yesterday's high, or RSI(2) > 70, or 7 trading days in trade.
  * Stop:   1.5 * ATR(14) below entry (checked at close, exit next open).
  *
- * Parameters are fields (not magic numbers) so the backtester can sweep them
- * for the sensitivity analysis in blueprint §6.5.
+ * Parameters are constructor arguments so the sweep command can grid them
+ * for the sensitivity analysis in blueprint §6.5; the no-arg constructor is
+ * the v1 default configuration.
  */
 public class PullbackStrategy implements Strategy {
 
-    private final int trendSmaPeriod = 200;
-    private final int rsiPeriod = 2;
-    private final double rsiEntryBelow = 10.0;
-    private final double rsiExitAbove = 70.0;
-    private final int maxHoldDays = 7;
-    private final double atrStopMultiple = 1.5;
-    private final int atrPeriod = 14;
-    private final int momentumLookback = 126; // ~6 months
+    private final int trendSmaPeriod;
+    private final int rsiPeriod;
+    private final double rsiEntryBelow;
+    private final double rsiExitAbove;
+    private final int maxHoldDays;
+    private final double atrStopMultiple;
+    private final int atrPeriod;
+    private final int momentumLookback;
+    private final String name;
+
+    /** The v1 defaults (blueprint §5, Strategy A). */
+    public PullbackStrategy() {
+        this(10.0, 7, 1.5);
+        // name stays "pullback-v1" via the check below
+    }
+
+    /** Sweepable knobs; everything else held at v1 values. */
+    public PullbackStrategy(double rsiEntryBelow, int maxHoldDays, double atrStopMultiple) {
+        this.trendSmaPeriod = 200;
+        this.rsiPeriod = 2;
+        this.rsiEntryBelow = rsiEntryBelow;
+        this.rsiExitAbove = 70.0;
+        this.maxHoldDays = maxHoldDays;
+        this.atrStopMultiple = atrStopMultiple;
+        this.atrPeriod = 14;
+        this.momentumLookback = 126; // ~6 months
+        boolean isDefault = rsiEntryBelow == 10.0 && maxHoldDays == 7 && atrStopMultiple == 1.5;
+        this.name = isDefault ? "pullback-v1"
+                : String.format(java.util.Locale.ROOT, "pullback(rsi<%.0f,hold%d,atr%.1f)",
+                        rsiEntryBelow, maxHoldDays, atrStopMultiple);
+    }
 
     @Override
     public String name() {
-        return "pullback-v1";
+        return name;
     }
 
     @Override

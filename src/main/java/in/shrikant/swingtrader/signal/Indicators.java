@@ -72,4 +72,18 @@ public final class Indicators {
         return candles.subList(candles.size() - period, candles.size()).stream()
                 .mapToDouble(Candle::close).max().orElse(Double.NaN);
     }
+
+    /** Highest close among bars dated on/after {@code from}. NaN if none. */
+    public static double highestCloseSince(List<Candle> candles, java.time.LocalDate from) {
+        return candles.stream()
+                .filter(c -> !c.date().isBefore(from))
+                .mapToDouble(Candle::close).max().orElse(Double.NaN);
+    }
+
+    /** Average volume over the last {@code period} bars. NaN if insufficient data. */
+    public static double avgVolume(List<Candle> candles, int period) {
+        if (candles.size() < period) return Double.NaN;
+        return candles.subList(candles.size() - period, candles.size()).stream()
+                .mapToDouble(Candle::volume).average().orElse(Double.NaN);
+    }
 }

@@ -44,9 +44,8 @@ public class Main {
             case "instruments" -> instruments(args.length > 1 ? args[1] : DEFAULT_CONFIG);
             case "universe" -> universe(args.length > 1 ? args[1] : null);
             case "download" -> download(args.length > 1 ? args[1] : DEFAULT_CONFIG);
-            case "backtest" -> backtest(
-                    args.length > 1 ? LocalDate.parse(args[1]) : null,
-                    args.length > 2 ? LocalDate.parse(args[2]) : null);
+            case "backtest" -> backtest(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
+            case "sweep" -> sweep(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
             case "signals", "paper", "live" ->
                     System.out.println("'" + cmd + "' is not implemented yet — see docs/blueprint.md §8 roadmap.");
             default -> System.out.println("""
@@ -59,8 +58,12 @@ public class Main {
                                                  ind_nifty100list.csv if a path is given)
                       download [config-path]     incremental EOD candle fetch for the universe
                                                  (needs the paid Connect plan for historical data)
-                      backtest [start] [end]     run PullbackStrategy over stored candles and
-                                                 write reports/backtest-*.html
+                      backtest [pullback|breakout] [start] [end]
+                                                 run a strategy over stored candles and write
+                                                 reports/backtest-*.html
+                      sweep [pullback|breakout] [start] [end]
+                                                 27-combination parameter sensitivity grid →
+                                                 reports/sweep-*.html (in-sample window only!)
                       signals|paper|live         not implemented yet""");
         }
     }
@@ -123,8 +126,40 @@ public class Main {
         }
     }
 
-    private static void backtest(LocalDate startArg, LocalDate endArg) throws Exception {
-        AppConfig config = AppConfig.load(DEFAULT_CONFIG);
+    /** First non-date arg after the command, defaulting to "pullback". */
+    private static String strategyArg(String[] args) {
+        for (int i = 1; i < args.length; i++) {
+            if (!args[i].matches("\\d{4}-\\d{2}-\\d{2}")) return args[i];
+        }
+        return "pullback";
+    }
+
+    /** The nth date-shaped arg after the command (1-based), or null. */
+    private static LocalDate dateArg(String[] args, int nth) {
+        int seen = 0;
+        for (int i = 1; i < args.length; i++) {
+            if (args[i].matches("\\d{4}-\\d{2}-\\d{2}") && ++seen == nth) {
+                return LocalDate.parse(args[i]);
+            }
+        }
+        return null;
+    }
+
+    private static in.shrikant.swingtrader.signal.Strategy strategyFor(String kind) {
+        return switch (kind) {
+            case "pullback" -> new in.shrikant.swingtrader.signal.strategies.PullbackStrategy();
+            case "breakout" -> new in.shrikant.swingtrader.signal.strategies.BreakoutStrategy();
+            default -> throw new IllegalArgumentException(
+                    "Unknown strategy: " + kind + " (use pullback or breakout)");
+        };
+    }
+
+    private record LoadedCandles(
+            java.util.Map<String, List<in.shrikant.swingtrader.data.Candle>> candles,
+            LocalDate start, LocalDate end) {}
+
+    private static LoadedCandles loadCandles(AppConfig config, LocalDate startArg,
+                                             LocalDate endArg) throws Exception {
         java.util.Map<String, List<in.shrikant.swingtrader.data.Candle>> candles;
         try (Connection conn = Database.open(config.dbPath())) {
             candles = new CandleRepository(conn).allCandles();
@@ -133,7 +168,6 @@ public class Main {
             System.err.println("No candles in " + config.dbPath()
                     + " — run `instruments`, `universe`, then `download` first.");
             System.exit(2);
-            return;
         }
         LocalDate dataEnd = candles.values().stream()
                 .map(list -> list.get(list.size() - 1).date())
@@ -141,8 +175,46 @@ public class Main {
         LocalDate start = startArg != null ? startArg
                 : in.shrikant.swingtrader.data.CandleDownloader.DEFAULT_START;
         LocalDate end = endArg != null ? endArg : dataEnd;
+        return new LoadedCandles(candles, start, end);
+    }
 
-        var strategy = new in.shrikant.swingtrader.signal.strategies.PullbackStrategy();
+    private static void sweep(String kind, LocalDate startArg, LocalDate endArg) throws Exception {
+        AppConfig config = AppConfig.load(DEFAULT_CONFIG);
+        LoadedCandles data = loadCandles(config, startArg, endArg);
+        System.out.println("Sweeping " + kind + " parameter grid "
+                + data.start() + " → " + data.end()
+                + " (27 backtests — a few minutes on full history) ...");
+        var rows = in.shrikant.swingtrader.backtest.SensitivitySweep.run(
+                kind, data.candles(), data.start(), data.end(), config.startingCapital());
+
+        System.out.println("Top of the grid (by expectancy):");
+        rows.stream().limit(5).forEach(r -> System.out.printf(java.util.Locale.ROOT,
+                "  %-38s trades=%-4d expectancy=₹%,.0f maxDD=%.1f%%%n",
+                r.label(), r.stats().tradeCount(), r.stats().expectancy(),
+                r.stats().maxDrawdown() * 100));
+        long positive = rows.stream().filter(r -> r.stats().expectancy() > 0).count();
+        System.out.println(positive + "/" + rows.size()
+                + " combinations have positive expectancy"
+                + (positive <= 3 && positive > 0
+                        ? " — WARNING: isolated winners smell like curve-fit." : "."));
+
+        Path reportDir = Path.of("reports");
+        java.nio.file.Files.createDirectories(reportDir);
+        Path report = reportDir.resolve("sweep-" + kind + "-" + data.end() + ".html");
+        java.nio.file.Files.writeString(report,
+                in.shrikant.swingtrader.backtest.SensitivitySweep.renderHtml(
+                        kind, rows, data.start(), data.end()));
+        System.out.println("Sweep report written to " + report.toAbsolutePath());
+    }
+
+    private static void backtest(String kind, LocalDate startArg, LocalDate endArg) throws Exception {
+        AppConfig config = AppConfig.load(DEFAULT_CONFIG);
+        LoadedCandles data = loadCandles(config, startArg, endArg);
+        var candles = data.candles();
+        LocalDate start = data.start();
+        LocalDate end = data.end();
+
+        var strategy = strategyFor(kind);
         var backtester = new in.shrikant.swingtrader.backtest.Backtester(
                 strategy, new in.shrikant.swingtrader.risk.RiskManager(),
                 new in.shrikant.swingtrader.backtest.CostModel(), config.startingCapital());

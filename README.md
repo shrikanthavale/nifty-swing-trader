@@ -25,8 +25,9 @@ The core design rule: **the strategy and risk code that runs live is the identic
 - [x] Instruments dump + dated NIFTY 100 universe (`instruments` / `universe` commands)
 - [x] Incremental EOD candle downloader with stale-data guard (`download` command)
 - [x] Backtester (same Strategy/RiskManager as live, next-open fills, full cost model) + static HTML report (`backtest` command)
-- [ ] **Phase 1 finale:** download real 2015→present data, run the first honest backtest ← *currently here*
-- [ ] Phase 2: strategy research & validation
+- [x] Phase 2 tooling: BreakoutStrategy, parameterized strategies, sensitivity `sweep` command
+- [ ] **Currently here:** download real 2015→present data, run the first honest backtests & sweeps
+- [ ] Phase 2 outcome: one validated strategy (or honest failure + iteration)
 - [ ] Phase 3: paper trading (live pipeline, no real orders)
 - [ ] Phase 4: live at half size
 - [ ] Phase 5: full size

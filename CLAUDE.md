@@ -36,10 +36,13 @@ Also done (July 2026): **candle downloader.** `CandleRepository` (upsert, lastDa
 
 Also done (July 2026): **backtester + HTML report.** `Backtester` replays the daily loop (signals at close D → fills at D+1 OPEN through `CostModel`; exits fill before entries; halted-symbol exits stay queued, halted entries drop; trading calendar = the data's own dates). `MarketSnapshot.ofPresorted` added (binary-search cutoff, no copying — semantics identical to `of`, tested). **Kill-switch decision (Shrikant, July 2026):** backtests simulate the manual review as a *cooling-off reset* — after a 6% drawdown firing, entries stay blocked 10 trading days, then the equity peak resets to current equity; `RiskManager` untouched (backtester only controls the equityPeak argument). Firings are counted and reported. `BacktestStats` (expectancy, win rate, maxDD, CAGR, profit factor, cost drag, half-split, acceptance-bar booleans), `HtmlReport` (self-contained static HTML: stat tiles, acceptance checklist, SVG equity+drawdown charts with crosshair tooltip, full trades table, light+dark). `backtest [start] [end]` command writes reports/backtest-*.html (gitignored). Verified end-to-end on synthetic GBM data: random walk + costs → negative expectancy, exactly as it should be.
 
+Also done (July 2026): **Phase 2 tooling** (built before the real-data run, which Shrikant hasn't done yet). `BreakoutStrategy` fully implemented (N-day closing high + volume > mult × prior-20-day average + 200-SMA filter; trailing `trailAtr`×ATR(14) stop from highest close since entry; timeout; rank = volume surge). Both strategies now take constructor params (no-arg = v1 defaults, names stay `*-v1`; variants get descriptive names). `SensitivitySweep` runs a 27-combination grid per strategy through the identical Backtester and renders an HTML plateau table (sorted by expectancy, default outlined). New `Indicators`: `avgVolume`, `highestCloseSince`. CLI: `backtest [pullback|breakout] [start] [end]`, `sweep [pullback|breakout] [start] [end]`.
+
 Next, in order:
-1. Upgrade the Kite app to the Connect plan (₹500/30 days), run `instruments` + `universe` + `download` for 2015→present real candles.
-2. Run the real backtest of PullbackStrategy; report honestly even (especially) if it fails the acceptance bar.
-3. Phase 2 begins: sensitivity sweep (parameter plateau), in/out-of-sample split, implement BreakoutStrategy.
+1. **Real data (blocking everything):** upgrade the Kite app to the Connect plan (₹500/30 days), run `instruments` + `universe` + `download` for 2015→present, then `mvn test` (never yet run on Shrikant's machine for the backtest/Phase-2 code — sandbox couldn't run Maven).
+2. In-sample discipline (blueprint §6.4): design/sweep on 2015→2021 only (`backtest pullback 2015-01-01 2021-12-31`, `sweep pullback 2015-01-01 2021-12-31`); keep 2022→present untouched for ONE final out-of-sample run per surviving strategy.
+3. Pick a survivor (or iterate on filters, not parameters); write the one-page rule spec (Phase 2 milestone).
+4. Then Phase 3: scheduler, paper-mode executor, journal, daily Telegram/email summary.
 
 ## Conventions
 

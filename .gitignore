@@ -30,3 +30,7 @@ target/
 # OS
 .DS_Store
 Thumbs.db
+
+# Staging area for files Claude's session moves aside for manual deletion
+# (its shell can move files here but cannot delete them)
+_to_delete/

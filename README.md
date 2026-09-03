@@ -26,9 +26,10 @@ The core design rule: **the strategy and risk code that runs live is the identic
 - [x] Incremental EOD candle downloader with stale-data guard (`download` command)
 - [x] Backtester (same Strategy/RiskManager as live, next-open fills, full cost model) + static HTML report (`backtest` command)
 - [x] Phase 2 tooling: BreakoutStrategy, parameterized strategies, sensitivity `sweep` command
+- [x] Phase 3 plumbing: journal, `paper` daily cycle (orders to journal, never to Zerodha), Telegram summary
 - [ ] **Currently here:** download real 2015→present data, run the first honest backtests & sweeps
 - [ ] Phase 2 outcome: one validated strategy (or honest failure + iteration)
-- [ ] Phase 3: paper trading (live pipeline, no real orders)
+- [ ] Phase 3 milestone: 4+ weeks of paper trades matching the backtester
 - [ ] Phase 4: live at half size
 - [ ] Phase 5: full size
 

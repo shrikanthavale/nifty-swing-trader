@@ -17,5 +17,11 @@ kite.token_path=config/access_token.properties
 # Local SQLite database file
 db.path=swingtrader.db
 
+# Optional: Telegram daily summary (Phase 3 paper/live mode).
+# Create a bot with @BotFather, message it once, read your chat id from
+# https://api.telegram.org/bot<TOKEN>/getUpdates — leave blank to disable.
+telegram.bot_token=
+telegram.chat_id=
+
 # Starting capital in rupees (used for backtests and sizing)
 capital.starting=100000

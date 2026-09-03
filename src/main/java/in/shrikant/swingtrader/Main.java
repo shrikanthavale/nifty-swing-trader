@@ -46,7 +46,8 @@ public class Main {
             case "download" -> download(args.length > 1 ? args[1] : DEFAULT_CONFIG);
             case "backtest" -> backtest(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
             case "sweep" -> sweep(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
-            case "signals", "paper", "live" ->
+            case "paper" -> paper(args);
+            case "signals", "live" ->
                     System.out.println("'" + cmd + "' is not implemented yet — see docs/blueprint.md §8 roadmap.");
             default -> System.out.println("""
                     nifty-swing-trader — personal swing trading system (see docs/blueprint.md)
@@ -64,7 +65,12 @@ public class Main {
                       sweep [pullback|breakout] [start] [end]
                                                  27-combination parameter sensitivity grid →
                                                  reports/sweep-*.html (in-sample window only!)
-                      signals|paper|live         not implemented yet""");
+                      paper [pullback|breakout]  run today's paper-trading cycle (after
+                                                 `download`): fill queued orders, journal
+                                                 signals, queue tomorrow's orders, send the
+                                                 daily summary (Telegram if configured)
+                      paper reset-peak           re-enable entries after a kill-switch halt
+                      signals|live               not implemented yet""");
         }
     }
 
@@ -205,6 +211,46 @@ public class Main {
                 in.shrikant.swingtrader.backtest.SensitivitySweep.renderHtml(
                         kind, rows, data.start(), data.end()));
         System.out.println("Sweep report written to " + report.toAbsolutePath());
+    }
+
+    private static void paper(String[] args) throws Exception {
+        AppConfig config = AppConfig.load(DEFAULT_CONFIG);
+
+        if (args.length > 1 && args[1].equals("reset-peak")) {
+            try (Connection conn = Database.open(config.dbPath())) {
+                var journal = new in.shrikant.swingtrader.journal.SqliteJournal(conn);
+                LocalDate today = LocalDate.now(IST);
+                journal.setMeta(in.shrikant.swingtrader.executor.PaperTrader.META_PEAK_RESET,
+                        today.toString());
+                System.out.println("Equity peak reset as of " + today
+                        + " — entries re-enabled from the next cycle. Log why in your journal!");
+            }
+            return;
+        }
+
+        LoadedCandles data = loadCandles(config, null, null);
+        LocalDate expected = in.shrikant.swingtrader.data.CandleDownloader
+                .expectedTradingDate(java.time.ZonedDateTime.now(IST));
+
+        try (Connection conn = Database.open(config.dbPath())) {
+            var journal = new in.shrikant.swingtrader.journal.SqliteJournal(conn);
+            var trader = new in.shrikant.swingtrader.executor.PaperTrader(
+                    strategyFor(strategyArg(args)),
+                    new in.shrikant.swingtrader.risk.RiskManager(),
+                    new in.shrikant.swingtrader.backtest.CostModel(),
+                    journal, config.startingCapital());
+
+            var result = trader.runDaily(data.candles(), expected);
+            System.out.println(result.text());
+
+            var notifier = new in.shrikant.swingtrader.notify.TelegramNotifier(
+                    config.telegramBotToken(), config.telegramChatId());
+            if (notifier.isConfigured()) {
+                System.out.println(notifier.send(result.text())
+                        ? "(summary sent to Telegram)" : "(Telegram send FAILED — see above)");
+            }
+            if (result.aborted()) System.exit(2);
+        }
     }
 
     private static void backtest(String kind, LocalDate startArg, LocalDate endArg) throws Exception {

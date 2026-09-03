@@ -82,6 +82,9 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                            <!-- keep the generated dependency-reduced pom out of the
+                                 project root (build output, gitignored) -->
+                            <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.shrikane.swingtrader.Main</mainClass>

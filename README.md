@@ -66,7 +66,7 @@ exactly `http://127.0.0.1:5000/callback` registered as its Redirect URL
 
 ```
 docs/blueprint.md      the full system design — read this first
-src/main/java/in/shrikant/swingtrader/
+src/main/java/com/shrikane/swingtrader/
   data/       candles, market snapshots (anti-lookahead), downloader
   signal/     Strategy interface, indicators, strategies/
   risk/       position sizing, limits, kill switch

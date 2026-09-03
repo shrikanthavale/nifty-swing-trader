@@ -15,7 +15,7 @@ fiction (blueprint §4).
 ## Package map
 
 ```
-in.shrikant.swingtrader
+com.shrikane.swingtrader
 │
 ├── config      AppConfig — reads config/config.properties (keys, capital,
 │               ports, Telegram). Never committed; example file is.

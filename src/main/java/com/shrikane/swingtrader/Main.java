@@ -37,7 +37,19 @@ public class Main {
     private static final String DEFAULT_CONFIG = "config/config.properties";
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
+        try {
+            run(args);
+            // Explicit exit: the Kite client (OkHttp) and Desktop.browse leave
+            // lingering non-daemon background threads that keep the JVM alive.
+            System.exit(0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
+    private static void run(String[] args) throws Exception {
         String cmd = args.length > 0 ? args[0] : "help";
         switch (cmd) {
             case "auth" -> auth(args.length > 1 ? args[1] : DEFAULT_CONFIG);

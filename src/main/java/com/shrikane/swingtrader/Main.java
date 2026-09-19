@@ -310,10 +310,13 @@ public class Main {
                 : new ConstituentsDownloader().download();
         try (Connection conn = Database.open(config.dbPath())) {
             ConstituentsRepository repo = new ConstituentsRepository(conn);
-            LocalDate today = LocalDate.now(IST);
-            ConstituentsRepository.MembershipDiff diff = repo.applySnapshot(symbols, today);
+            // effective from the LAST TRADING DAY, not the calendar day: a snapshot
+            // taken on a weekend must already be "in force" when `download` asks
+            // for membership on Friday (found the hard way on a Saturday).
+            LocalDate asOf = CandleDownloader.expectedTradingDate(ZonedDateTime.now(IST));
+            ConstituentsRepository.MembershipDiff diff = repo.applySnapshot(symbols, asOf);
             System.out.println("NIFTY 100 snapshot (" + symbols.size() + " symbols) applied as of "
-                    + today + ": +" + diff.added().size() + " added, -"
+                    + asOf + ": +" + diff.added().size() + " added, -"
                     + diff.removed().size() + " removed.");
             if (!diff.added().isEmpty())   System.out.println("  added:   " + diff.added());
             if (!diff.removed().isEmpty()) System.out.println("  removed: " + diff.removed());

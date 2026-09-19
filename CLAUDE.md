@@ -63,4 +63,14 @@ Data: 264k candles, 100 symbols, 2015→2026-09-18 downloaded (Connect plan acti
 - **breakout-v1: partial.** +24.8% (CAGR 3.2%), expectancy +₹50/trade, 489 trades, PF 1.16, maxDD −21.9%. FAILS both-halves (−₹3.5k / +₹28k) — profits concentrated in 2019–21; possible bull-market dependence.
 - **pullback sweep: 9/27 positive, and it's a PLATEAU — the entire rsi<5 family tops the table (expectancy ₹11–32 across holds/stops) while rsi<10 and rsi<15 lose.** Lesson: at our cost level, fewer/deeper dips is the game.
 
-**Phase 2 iteration (built Sept 19): market-breadth regime filter.** `Indicators.breadthAboveSma(snapshot, 200)` = fraction of universe above own 200-SMA. Both strategies gained a `marketBreadthMin` param (0 = off; exits NEVER gated). CLI: `pullback2` = PullbackStrategy(rsi<5, hold7, atr1.5, breadth≥50%), `breakout2` = BreakoutStrategy(50d, 1.5x, 2.5atr, 10d, breadth≥50%). New sweep grid `pullback2`: rsi {4,5,6} × hold {5,7,10} × breadth {40,50,60%}. Run configs 10–12. Results pending — Shrikant runs them. 2022+ remains SEALED for the one OOS shot.
+**Phase 2 iteration (built Sept 19): market-breadth regime filter.** `Indicators.breadthAboveSma(snapshot, 200)` = fraction of universe above own 200-SMA. Both strategies gained a `marketBreadthMin` param (0 = off; exits NEVER gated). CLI: `pullback2` = PullbackStrategy(rsi<5, hold7, atr1.5, breadth≥50%), `breakout2` = BreakoutStrategy(50d, 1.5x, 2.5atr, 10d, breadth≥50%). New sweep grid `pullback2`: rsi {4,5,6} × hold {5,7,10} × breadth {40,50,60%}. Run configs 10–12. Results pending — Shrikant runs them. 2022+ remains SEALED for the one OOS shot.
+
+## THE OOS EXAM — FIRED AND FAILED (Sept 19, 2026)
+
+Shrikant authorized the one out-of-sample run. pullback2 champion (rsi<5, hold10, atr1.5, b60%) on SEALED 2022-01-01→2026-09-18: **−16.1% total (CAGR −3.7%), expectancy −₹35.7/trade, PF 0.87, 451 trades, maxDD −19.1%, both halves negative, 8 kill-switch firings.** In-sample it was +37% with a 15/15-green plateau — the edge did not survive unseen data.
+
+**2022–2026 is now BURNED as out-of-sample for the pullback family.** Any future pullback variant judged on it is in-sample by definition. Honest validation from here = forward data only (paper trading) or a future re-download extending past Sept 2026.
+
+Post-mortem hypotheses (unproven, in order of suspicion): (1) survivorship-bias asymmetry — constituents were seeded from TODAY's list, so 2015–21 backtests bought 'today's winners' during the very years that made them winners, while 2022–26 is barely flattered; the in-sample edge may have been largely this artifact. (2) Iterative in-sample mining — v1→sweep→v2→probe was 4 rounds of selection on the same 7 years; plateaus reduce but don't eliminate overfit. (3) Regime: 2022 rate shock + 2024–26 chop genuinely differ from 2015–21.
+
+Next steps decided by this result: fix the data before fixing the strategy — reconstruct DATED NIFTY 100 membership from NSE's public index-change announcements (kills hypothesis 1 properly), then restart strategy research on honest universes. No strategy goes to paper trading on the current evidence.

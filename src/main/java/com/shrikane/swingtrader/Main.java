@@ -168,7 +168,7 @@ public class Main {
             case "pullback" -> new com.shrikane.swingtrader.signal.strategies.PullbackStrategy();
             // v2 = the in-sample sweep winner (deep dips only, RSI<5) plus the
             // market-breadth regime filter at 50%
-            case "pullback2" -> new com.shrikane.swingtrader.signal.strategies.PullbackStrategy(5.0, 7, 1.5, 0.5);
+            case "pullback2" -> new com.shrikane.swingtrader.signal.strategies.PullbackStrategy(5.0, 10, 1.5, 0.60);
             case "breakout" -> new com.shrikane.swingtrader.signal.strategies.BreakoutStrategy();
             case "breakout2" -> new com.shrikane.swingtrader.signal.strategies.BreakoutStrategy(50, 1.5, 2.5, 10, 0.5);
             default -> throw new IllegalArgumentException(

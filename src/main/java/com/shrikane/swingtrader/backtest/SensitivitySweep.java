@@ -70,7 +70,7 @@ public final class SensitivitySweep {
             Backtester backtester = new Backtester(
                     strategy, new RiskManager(), new CostModel(), startingCapital);
             Backtester.Result result = backtester.run(candles, start, end);
-            String v2Default = new PullbackStrategy(5.0, 7, 1.5, 0.5).name();
+            String v2Default = new PullbackStrategy(5.0, 10, 1.5, 0.60).name();
             boolean isDefault = strategy.name().endsWith("-v1")
                     || strategy.name().equals(v2Default);
             rows.add(new Row(strategy.name(), isDefault, BacktestStats.from(result)));

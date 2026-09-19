@@ -35,6 +35,7 @@ public class BreakoutStrategy implements Strategy {
     private final double trailAtrMultiple;
     private final int atrPeriod = 14;
     private final int maxHoldDays;
+    private final double marketBreadthMin;
     private final String name;
 
     /** The v1 defaults (blueprint §5, Strategy B). */
@@ -45,15 +46,26 @@ public class BreakoutStrategy implements Strategy {
     /** Sweepable knobs; everything else held at v1 values. */
     public BreakoutStrategy(int breakoutDays, double volumeMultiple,
                             double trailAtrMultiple, int maxHoldDays) {
+        this(breakoutDays, volumeMultiple, trailAtrMultiple, maxHoldDays, 0.0);
+    }
+
+    /** v2 knob: market-breadth regime filter, as in PullbackStrategy. 0 = off. */
+    public BreakoutStrategy(int breakoutDays, double volumeMultiple,
+                            double trailAtrMultiple, int maxHoldDays,
+                            double marketBreadthMin) {
         this.breakoutDays = breakoutDays;
         this.volumeMultiple = volumeMultiple;
         this.trailAtrMultiple = trailAtrMultiple;
         this.maxHoldDays = maxHoldDays;
+        this.marketBreadthMin = marketBreadthMin;
         boolean isDefault = breakoutDays == 50 && volumeMultiple == 1.5
-                && trailAtrMultiple == 2.5 && maxHoldDays == 10;
+                && trailAtrMultiple == 2.5 && maxHoldDays == 10 && marketBreadthMin == 0.0;
         this.name = isDefault ? "breakout-v1"
-                : String.format(Locale.ROOT, "breakout(%dd,vol%.2f,atr%.1f,hold%d)",
-                        breakoutDays, volumeMultiple, trailAtrMultiple, maxHoldDays);
+                : String.format(Locale.ROOT, "breakout(%dd,vol%.2f,atr%.1f,hold%d%s)",
+                        breakoutDays, volumeMultiple, trailAtrMultiple, maxHoldDays,
+                        marketBreadthMin > 0
+                                ? String.format(Locale.ROOT, ",b%.0f%%", marketBreadthMin * 100)
+                                : "");
     }
 
     @Override
@@ -85,6 +97,12 @@ public class BreakoutStrategy implements Strategy {
                         today.close(), 0, 0,
                         today.close() < trailingStop ? "breakout trail stop" : "breakout timeout"));
             }
+        }
+
+        // v2 regime filter: no NEW entries while the broad market is sick
+        if (marketBreadthMin > 0) {
+            double breadth = Indicators.breadthAboveSma(snapshot, trendSmaPeriod);
+            if (Double.isNaN(breadth) || breadth < marketBreadthMin) return signals;
         }
 
         // --- Entries: N-day closing high + volume confirmation + uptrend filter ---

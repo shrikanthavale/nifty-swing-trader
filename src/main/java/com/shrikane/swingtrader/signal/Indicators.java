@@ -1,6 +1,7 @@
 package com.shrikane.swingtrader.signal;
 
 import com.shrikane.swingtrader.data.Candle;
+import com.shrikane.swingtrader.data.MarketSnapshot;
 
 import java.util.List;
 
@@ -85,5 +86,25 @@ public final class Indicators {
         if (candles.size() < period) return Double.NaN;
         return candles.subList(candles.size() - period, candles.size()).stream()
                 .mapToDouble(Candle::volume).average().orElse(Double.NaN);
+    }
+
+    /**
+     * Market breadth: the fraction of snapshot symbols whose latest close is
+     * above their own {@code period}-day SMA — a fever thermometer for the
+     * whole market (near 1 in broad uptrends, near 0 in broad sell-offs).
+     * Symbols with insufficient history are excluded from the denominator;
+     * NaN if none qualify. Used by the v2 regime filter.
+     */
+    public static double breadthAboveSma(MarketSnapshot snapshot, int period) {
+        int eligible = 0, above = 0;
+        for (String symbol : snapshot.symbols()) {
+            List<Candle> candles = snapshot.candles(symbol);
+            if (candles.size() < period) continue;
+            double sma = sma(candles, period);
+            if (Double.isNaN(sma)) continue;
+            eligible++;
+            if (candles.get(candles.size() - 1).close() > sma) above++;
+        }
+        return eligible == 0 ? Double.NaN : (double) above / eligible;
     }
 }

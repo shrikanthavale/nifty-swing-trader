@@ -1,6 +1,7 @@
 package com.shrikane.swingtrader.signal;
 
 import com.shrikane.swingtrader.data.Candle;
+import com.shrikane.swingtrader.data.MarketSnapshot;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -42,5 +43,25 @@ class IndicatorsTest {
                 candle(0, 120, 1000), candle(1, 100, 1000), candle(2, 110, 1000));
         assertEquals(110, Indicators.highestClose(candles, 2), 1e-9);
         assertEquals(120, Indicators.highestClose(candles, 3), 1e-9);
+    }
+
+    @Test
+    void breadthCountsSymbolsAboveTheirSma() {
+        // A: last close 30 > sma(3)=20  |  B: last close 10 < sma(3)=20
+        java.util.Map<String, java.util.List<Candle>> bars = java.util.Map.of(
+                "A", List.of(candle(0, 10, 1), candle(1, 20, 1), candle(2, 30, 1)),
+                "B", List.of(candle(0, 30, 1), candle(1, 20, 1), candle(2, 10, 1)));
+        MarketSnapshot snap = MarketSnapshot.of(bars, D.plusDays(2));
+        assertEquals(0.5, Indicators.breadthAboveSma(snap, 3), 1e-9);
+    }
+
+    @Test
+    void breadthExcludesShortHistoriesAndIsNaNWhenNoneQualify() {
+        java.util.Map<String, java.util.List<Candle>> bars = java.util.Map.of(
+                "A", List.of(candle(0, 10, 1), candle(1, 20, 1), candle(2, 30, 1)),
+                "SHORT", List.of(candle(2, 100, 1)));
+        MarketSnapshot snap = MarketSnapshot.of(bars, D.plusDays(2));
+        assertEquals(1.0, Indicators.breadthAboveSma(snap, 3), 1e-9); // SHORT excluded
+        assertTrue(Double.isNaN(Indicators.breadthAboveSma(snap, 10)));
     }
 }

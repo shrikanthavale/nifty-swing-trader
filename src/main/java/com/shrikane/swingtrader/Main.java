@@ -71,10 +71,10 @@ public class Main {
                                                  ind_nifty100list.csv if a path is given)
                       download [config-path]     incremental EOD candle fetch for the universe
                                                  (needs the paid Connect plan for historical data)
-                      backtest [pullback|breakout] [start] [end]
+                      backtest [pullback|pullback2|breakout|breakout2] [start] [end]
                                                  run a strategy over stored candles and write
                                                  reports/backtest-*.html
-                      sweep [pullback|breakout] [start] [end]
+                      sweep [pullback|pullback2|breakout] [start] [end]
                                                  27-combination parameter sensitivity grid →
                                                  reports/sweep-*.html (in-sample window only!)
                       paper [pullback|breakout]  run today's paper-trading cycle (after
@@ -166,9 +166,13 @@ public class Main {
     private static com.shrikane.swingtrader.signal.Strategy strategyFor(String kind) {
         return switch (kind) {
             case "pullback" -> new com.shrikane.swingtrader.signal.strategies.PullbackStrategy();
+            // v2 = the in-sample sweep winner (deep dips only, RSI<5) plus the
+            // market-breadth regime filter at 50%
+            case "pullback2" -> new com.shrikane.swingtrader.signal.strategies.PullbackStrategy(5.0, 7, 1.5, 0.5);
             case "breakout" -> new com.shrikane.swingtrader.signal.strategies.BreakoutStrategy();
+            case "breakout2" -> new com.shrikane.swingtrader.signal.strategies.BreakoutStrategy(50, 1.5, 2.5, 10, 0.5);
             default -> throw new IllegalArgumentException(
-                    "Unknown strategy: " + kind + " (use pullback or breakout)");
+                    "Unknown strategy: " + kind + " (use pullback, pullback2, breakout or breakout2)");
         };
     }
 

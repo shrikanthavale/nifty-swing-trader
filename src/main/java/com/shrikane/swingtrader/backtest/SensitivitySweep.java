@@ -43,6 +43,13 @@ public final class SensitivitySweep {
                         for (double atr : new double[]{1.0, 1.5, 2.0})
                             combos.add(new PullbackStrategy(rsi, hold, atr));
             }
+            case "pullback2" -> {
+                // v2 neighborhood: deep-dip threshold x hold x breadth gate (atr fixed 1.5)
+                for (double rsi : new double[]{4, 5, 6})
+                    for (int hold : new int[]{5, 7, 10})
+                        for (double breadth : new double[]{0.40, 0.50, 0.60})
+                            combos.add(new PullbackStrategy(rsi, hold, 1.5, breadth));
+            }
             case "breakout" -> {
                 for (int days : new int[]{40, 50, 60})
                     for (double vol : new double[]{1.25, 1.5, 2.0})
@@ -50,7 +57,7 @@ public final class SensitivitySweep {
                             combos.add(new BreakoutStrategy(days, vol, trail, 10));
             }
             default -> throw new IllegalArgumentException(
-                    "Unknown strategy kind: " + kind + " (use pullback or breakout)");
+                    "Unknown strategy kind: " + kind + " (use pullback, pullback2 or breakout)");
         }
         return combos;
     }
@@ -63,7 +70,9 @@ public final class SensitivitySweep {
             Backtester backtester = new Backtester(
                     strategy, new RiskManager(), new CostModel(), startingCapital);
             Backtester.Result result = backtester.run(candles, start, end);
-            boolean isDefault = strategy.name().endsWith("-v1");
+            String v2Default = new PullbackStrategy(5.0, 7, 1.5, 0.5).name();
+            boolean isDefault = strategy.name().endsWith("-v1")
+                    || strategy.name().equals(v2Default);
             rows.add(new Row(strategy.name(), isDefault, BacktestStats.from(result)));
         }
         rows.sort(Comparator.comparingDouble((Row r) -> r.stats().expectancy()).reversed());

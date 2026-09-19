@@ -32,6 +32,7 @@ public class PullbackStrategy implements Strategy {
     private final double atrStopMultiple;
     private final int atrPeriod;
     private final int momentumLookback;
+    private final double marketBreadthMin;
     private final String name;
 
     /** The v1 defaults (blueprint §5, Strategy A). */
@@ -42,6 +43,16 @@ public class PullbackStrategy implements Strategy {
 
     /** Sweepable knobs; everything else held at v1 values. */
     public PullbackStrategy(double rsiEntryBelow, int maxHoldDays, double atrStopMultiple) {
+        this(rsiEntryBelow, maxHoldDays, atrStopMultiple, 0.0);
+    }
+
+    /**
+     * v2 knob: additionally require market breadth (fraction of the universe
+     * above its own 200-SMA) >= {@code marketBreadthMin} before ANY entry —
+     * don't buy dips while the whole market is falling. 0 = filter off (v1).
+     */
+    public PullbackStrategy(double rsiEntryBelow, int maxHoldDays, double atrStopMultiple,
+                            double marketBreadthMin) {
         this.trendSmaPeriod = 200;
         this.rsiPeriod = 2;
         this.rsiEntryBelow = rsiEntryBelow;
@@ -50,10 +61,15 @@ public class PullbackStrategy implements Strategy {
         this.atrStopMultiple = atrStopMultiple;
         this.atrPeriod = 14;
         this.momentumLookback = 126; // ~6 months
-        boolean isDefault = rsiEntryBelow == 10.0 && maxHoldDays == 7 && atrStopMultiple == 1.5;
+        this.marketBreadthMin = marketBreadthMin;
+        boolean isDefault = rsiEntryBelow == 10.0 && maxHoldDays == 7 && atrStopMultiple == 1.5
+                && marketBreadthMin == 0.0;
         this.name = isDefault ? "pullback-v1"
-                : String.format(java.util.Locale.ROOT, "pullback(rsi<%.0f,hold%d,atr%.1f)",
-                        rsiEntryBelow, maxHoldDays, atrStopMultiple);
+                : String.format(java.util.Locale.ROOT, "pullback(rsi<%.0f,hold%d,atr%.1f%s)",
+                        rsiEntryBelow, maxHoldDays, atrStopMultiple,
+                        marketBreadthMin > 0
+                                ? String.format(java.util.Locale.ROOT, ",b%.0f%%", marketBreadthMin * 100)
+                                : "");
     }
 
     @Override
@@ -82,6 +98,13 @@ public class PullbackStrategy implements Strategy {
                 signals.add(new Signal(position.symbol(), Signal.Action.EXIT,
                         today.close(), 0, 0, "pullback exit"));
             }
+        }
+
+        // v2 regime filter: no NEW entries while the broad market is sick
+        // (exits above always run — sick markets are exactly when stops matter)
+        if (marketBreadthMin > 0) {
+            double breadth = Indicators.breadthAboveSma(snapshot, trendSmaPeriod);
+            if (Double.isNaN(breadth) || breadth < marketBreadthMin) return signals;
         }
 
         // --- Entries ---

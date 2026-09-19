@@ -54,3 +54,13 @@ Next, in order:
 - Position.tradingDaysHeld is a calendar approximation — replace with an NSE trading calendar (known TODO).
 - This is a **public repo**: never commit `config/config.properties`, tokens, or `.db` files (gitignored). Never put real credentials in code, tests, or docs.
 - User context: Shrikant primarily codes in Java; explain trading-domain concepts when they come up, don't assume finance background.
+
+## First real backtests (Sept 19, 2026 — in-sample 2015→2021, real Kite data)
+
+Data: 264k candles, 100 symbols, 2015→2026-09-18 downloaded (Connect plan active since Sept 2026; manual credit top-up, no auto-renew). Discontinuity flags all verified as real events (COVID 2020-03-23, PSU recap 2017-10-25, Adani/Hindenburg, 2024 election day) or demergers (ADANIENT 2015, SIEMENS 2025, VEDL 2026 — known un-adjustable caveat, bias is against the strategy).
+
+- **pullback-v1: FAIL.** −6.6% total, expectancy −₹7/trade, 1050 trades, win rate 61%, PF 0.98, maxDD −32%, cost drag ₹62k (!), 15 kill-switch firings, both halves negative. Death by costs: too many shallow dips.
+- **breakout-v1: partial.** +24.8% (CAGR 3.2%), expectancy +₹50/trade, 489 trades, PF 1.16, maxDD −21.9%. FAILS both-halves (−₹3.5k / +₹28k) — profits concentrated in 2019–21; possible bull-market dependence.
+- **pullback sweep: 9/27 positive, and it's a PLATEAU — the entire rsi<5 family tops the table (expectancy ₹11–32 across holds/stops) while rsi<10 and rsi<15 lose.** Lesson: at our cost level, fewer/deeper dips is the game.
+
+**Phase 2 iteration (built Sept 19): market-breadth regime filter.** `Indicators.breadthAboveSma(snapshot, 200)` = fraction of universe above own 200-SMA. Both strategies gained a `marketBreadthMin` param (0 = off; exits NEVER gated). CLI: `pullback2` = PullbackStrategy(rsi<5, hold7, atr1.5, breadth≥50%), `breakout2` = BreakoutStrategy(50d, 1.5x, 2.5atr, 10d, breadth≥50%). New sweep grid `pullback2`: rsi {4,5,6} × hold {5,7,10} × breadth {40,50,60%}. Run configs 10–12. Results pending — Shrikant runs them. 2022+ remains SEALED for the one OOS shot.

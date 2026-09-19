@@ -35,6 +35,10 @@ The core design rule: **the strategy and risk code that runs live is the identic
 
 ## Getting started
 
+IntelliJ users: shared run configurations live in [`.run/`](.run) — they
+appear in the run dropdown, numbered in the order of the daily/setup flow
+(auth → instruments → universe → download → backtest/sweep → paper).
+
 Requires Java 21+ and Maven.
 
 ```bash

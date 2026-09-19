@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="5 backtest pullback IN-SAMPLE" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.shrikane.swingtrader.Main" />
+    <module name="nifty-swing-trader" />
+    <option name="PROGRAM_PARAMETERS" value="backtest pullback 2015-01-01 2021-12-31" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

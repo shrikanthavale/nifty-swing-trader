@@ -64,4 +64,20 @@ class ConstituentsRepositoryTest {
             assertEquals(Set.of("RELIANCE", "TCS", "NEWCO"), repo.currentMembers());
         }
     }
+
+    @Test
+    void intervalReplaceAndLoadRoundTrip() throws Exception {
+        try (Connection conn = Database.open(":memory:")) {
+            ConstituentsRepository repo = new ConstituentsRepository(conn);
+            repo.applySnapshot(Set.of("OLD"), LocalDate.of(2026, 1, 1)); // pre-existing rows
+            var table = com.shrikane.swingtrader.data.MembershipTable.parseCsv(
+                    "symbol,from_date,to_date\nAAA,2016-04-01,\nBBB,2016-04-01,2020-03-19\n");
+            repo.replaceAllIntervals(table.intervals());
+            var loaded = repo.loadMembership();
+            assertEquals(2, loaded.intervals().size()); // OLD was wiped
+            assertEquals(Set.of("AAA", "BBB"), loaded.membersOn(LocalDate.of(2019, 1, 1)));
+            assertEquals(Set.of("AAA"), loaded.membersOn(LocalDate.of(2021, 1, 1)));
+            assertEquals(List.of("AAA"), repo.membersOn(LocalDate.of(2021, 1, 1))); // SQL path agrees
+        }
+    }
 }

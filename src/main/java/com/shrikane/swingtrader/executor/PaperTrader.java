@@ -55,14 +55,23 @@ public final class PaperTrader {
     private final CostModel costModel;
     private final Journal journal;
     private final double startingCapital;
+    /** Dated membership for entry gating; null = all symbols eligible. */
+    private final java.util.function.Function<LocalDate, java.util.Set<String>> membership;
 
     public PaperTrader(Strategy strategy, RiskManager riskManager, CostModel costModel,
                        Journal journal, double startingCapital) {
+        this(strategy, riskManager, costModel, journal, startingCapital, null);
+    }
+
+    public PaperTrader(Strategy strategy, RiskManager riskManager, CostModel costModel,
+                       Journal journal, double startingCapital,
+                       java.util.function.Function<LocalDate, java.util.Set<String>> membership) {
         this.strategy = strategy;
         this.riskManager = riskManager;
         this.costModel = costModel;
         this.journal = journal;
         this.startingCapital = startingCapital;
+        this.membership = membership;
     }
 
     /** Outcome of one daily cycle; {@link #text} is the human/Telegram summary. */
@@ -140,7 +149,8 @@ public final class PaperTrader {
         boolean paused = weeklyPnl <= -WEEKLY_PAUSE_FRACTION * equity;
 
         // ---- 4. evaluate, approve, journal, queue ----
-        MarketSnapshot snapshot = MarketSnapshot.ofPresorted(candlesUpToToday, today);
+        MarketSnapshot snapshot = MarketSnapshot.ofPresorted(candlesUpToToday, today,
+                membership == null ? null : membership.apply(today));
         Portfolio portfolio = new Portfolio(cash);
         positions.forEach(p -> portfolio.applyBuy(p, 0));
 

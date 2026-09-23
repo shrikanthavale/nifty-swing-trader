@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import com.shrikane.swingtrader.data.MembershipTable;
 
 /**
  * Dated NIFTY 100 membership (blueprint §6.3, survivorship bias): each row is
@@ -114,5 +115,49 @@ public final class ConstituentsRepository {
         } finally {
             conn.setAutoCommit(previousAutoCommit);
         }
+    }
+
+    /** Wipes the table and loads the given dated intervals (history import). */
+    public void replaceAllIntervals(java.util.List<MembershipTable.Interval> intervals)
+            throws SQLException {
+        boolean previousAutoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try {
+            try (PreparedStatement wipe = conn.prepareStatement("DELETE FROM constituents")) {
+                wipe.executeUpdate();
+            }
+            try (PreparedStatement insert = conn.prepareStatement(
+                    "INSERT INTO constituents (symbol, from_date, to_date) VALUES (?, ?, ?)")) {
+                for (MembershipTable.Interval iv : intervals) {
+                    insert.setString(1, iv.symbol());
+                    insert.setString(2, iv.fromDate().toString());
+                    insert.setString(3, iv.toDate() == null ? null : iv.toDate().toString());
+                    insert.addBatch();
+                }
+                insert.executeBatch();
+            }
+            conn.commit();
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(previousAutoCommit);
+        }
+    }
+
+    /** Every interval in the table, as an in-memory MembershipTable. */
+    public MembershipTable loadMembership() throws SQLException {
+        java.util.List<MembershipTable.Interval> intervals = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT symbol, from_date, to_date FROM constituents");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String to = rs.getString(3);
+                intervals.add(new MembershipTable.Interval(rs.getString(1),
+                        LocalDate.parse(rs.getString(2)),
+                        to == null ? null : LocalDate.parse(to)));
+            }
+        }
+        return new MembershipTable(intervals);
     }
 }

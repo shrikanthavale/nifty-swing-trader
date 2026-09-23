@@ -65,10 +65,17 @@ public final class SensitivitySweep {
     /** Runs the full grid; rows come back sorted by expectancy, best first. */
     public static List<Row> run(String kind, Map<String, List<Candle>> candles,
                                 LocalDate start, LocalDate end, double startingCapital) {
+        return run(kind, candles, start, end, startingCapital, null);
+    }
+
+    /** As above with a dated-membership entry gate (null = ungated). */
+    public static List<Row> run(String kind, Map<String, List<Candle>> candles,
+                                LocalDate start, LocalDate end, double startingCapital,
+                                java.util.function.Function<LocalDate, java.util.Set<String>> membership) {
         List<Row> rows = new ArrayList<>();
         for (Strategy strategy : grid(kind)) {
             Backtester backtester = new Backtester(
-                    strategy, new RiskManager(), new CostModel(), startingCapital);
+                    strategy, new RiskManager(), new CostModel(), startingCapital, membership);
             Backtester.Result result = backtester.run(candles, start, end);
             String v2Default = new PullbackStrategy(5.0, 10, 1.5, 0.60).name();
             boolean isDefault = strategy.name().endsWith("-v1")

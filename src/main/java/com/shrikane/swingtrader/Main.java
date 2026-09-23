@@ -54,7 +54,13 @@ public class Main {
         switch (cmd) {
             case "auth" -> auth(args.length > 1 ? args[1] : DEFAULT_CONFIG);
             case "instruments" -> instruments(args.length > 1 ? args[1] : DEFAULT_CONFIG);
-            case "universe" -> universe(args.length > 1 ? args[1] : null);
+            case "universe" -> {
+                if (args.length > 1 && args[1].equals("history")) {
+                    universeHistory(args.length > 2 ? args[2] : "datasets/nifty50_membership.csv");
+                } else {
+                    universe(args.length > 1 ? args[1] : null);
+                }
+            }
             case "download" -> download(args.length > 1 ? args[1] : DEFAULT_CONFIG);
             case "backtest" -> backtest(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
             case "sweep" -> sweep(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
@@ -66,7 +72,10 @@ public class Main {
                     usage: java -jar nifty-swing-trader.jar <command>
                       auth [config-path]         daily Kite login; saves today's access token
                       instruments [config-path]  sync Kite's NSE instruments dump into the DB
-                      universe [csv-path]        refresh NIFTY 100 constituents (downloads from
+                      universe history [csv]     load dated NIFTY 50 membership history
+                                                 (datasets/nifty50_membership.csv) — the
+                                                 survivorship-bias fix; run before backtests
+                      universe [csv-path]        refresh CURRENT constituents snapshot (downloads from
                                                  NSE, or parses a manually saved
                                                  ind_nifty100list.csv if a path is given)
                       download [config-path]     incremental EOD candle fetch for the universe
@@ -110,7 +119,12 @@ public class Main {
         try (Connection conn = Database.open(config.dbPath())) {
             ConstituentsRepository constituents = new ConstituentsRepository(conn);
             LocalDate expected = CandleDownloader.expectedTradingDate(ZonedDateTime.now(IST));
-            List<String> universe = constituents.membersOn(expected);
+            // fetch every symbol EVER a member, so backtests have candles for
+            // ex-members too (delisted ones surface as missing-token warnings)
+            var membershipTable = constituents.loadMembership();
+            List<String> universe = membershipTable.isEmpty()
+                    ? constituents.membersOn(expected)
+                    : new java.util.ArrayList<>(new java.util.TreeSet<>(membershipTable.allSymbols()));
             if (universe.isEmpty()) {
                 System.err.println("Universe is empty — run the `universe` command first.");
                 System.exit(2);
@@ -206,8 +220,14 @@ public class Main {
         System.out.println("Sweeping " + kind + " parameter grid "
                 + data.start() + " → " + data.end()
                 + " (27 backtests — a few minutes on full history) ...");
+        var membership = membershipGate(config);
+        if (membership == null) {
+            System.out.println("WARNING: no membership history loaded — sweep is UNGATED"
+                    + " (survivorship-biased). Run `universe history` first.");
+        }
         var rows = com.shrikane.swingtrader.backtest.SensitivitySweep.run(
-                kind, data.candles(), data.start(), data.end(), config.startingCapital());
+                kind, data.candles(), data.start(), data.end(), config.startingCapital(),
+                membership);
 
         System.out.println("Top of the grid (by expectancy):");
         rows.stream().limit(5).forEach(r -> System.out.printf(java.util.Locale.ROOT,
@@ -254,7 +274,8 @@ public class Main {
                     strategyFor(strategyArg(args)),
                     new com.shrikane.swingtrader.risk.RiskManager(),
                     new com.shrikane.swingtrader.backtest.CostModel(),
-                    journal, config.startingCapital());
+                    journal, config.startingCapital(),
+                    membershipGate(config));
 
             var result = trader.runDaily(data.candles(), expected);
             System.out.println(result.text());
@@ -276,10 +297,17 @@ public class Main {
         LocalDate start = data.start();
         LocalDate end = data.end();
 
+        var membership = membershipGate(config);
+        if (membership == null) {
+            System.out.println("WARNING: no membership history loaded — backtest is UNGATED"
+                    + " (survivorship-biased). Run `universe history` first.");
+        }
+
         var strategy = strategyFor(kind);
         var backtester = new com.shrikane.swingtrader.backtest.Backtester(
                 strategy, new com.shrikane.swingtrader.risk.RiskManager(),
-                new com.shrikane.swingtrader.backtest.CostModel(), config.startingCapital());
+                new com.shrikane.swingtrader.backtest.CostModel(), config.startingCapital(),
+                membership);
 
         System.out.println("Backtesting " + strategy.name() + " " + start + " → " + end
                 + " on " + candles.size() + " symbols ...");
@@ -305,6 +333,29 @@ public class Main {
         java.nio.file.Files.writeString(report,
                 com.shrikane.swingtrader.backtest.HtmlReport.render(result, stats));
         System.out.println("Report written to " + report.toAbsolutePath());
+    }
+
+    private static void universeHistory(String csvPath) throws Exception {
+        AppConfig config = AppConfig.load(DEFAULT_CONFIG);
+        String csv = java.nio.file.Files.readString(Path.of(csvPath));
+        var table = com.shrikane.swingtrader.data.MembershipTable.parseCsv(csv);
+        try (Connection conn = Database.open(config.dbPath())) {
+            new ConstituentsRepository(conn).replaceAllIntervals(table.intervals());
+        }
+        System.out.println("Loaded " + table.intervals().size() + " membership intervals for "
+                + table.allSymbols().size() + " symbols from " + csvPath + ".");
+        System.out.println("Members today: " + table.membersOn(LocalDate.now(IST)).size()
+                + " — backtests/sweeps/paper now gate entries by dated membership.");
+    }
+
+    /** Membership gate from the constituents table; null when nothing is loaded. */
+    private static java.util.function.Function<LocalDate, java.util.Set<String>>
+            membershipGate(AppConfig config) throws Exception {
+        try (Connection conn = Database.open(config.dbPath())) {
+            var table = new ConstituentsRepository(conn).loadMembership();
+            if (table.isEmpty()) return null;
+            return table::membersOn;
+        }
     }
 
     private static void universe(String csvPath) throws Exception {

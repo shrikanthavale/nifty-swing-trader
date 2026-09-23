@@ -74,13 +74,24 @@ public final class Backtester {
     private final RiskManager riskManager;
     private final CostModel costModel;
     private final double startingCapital;
+    /** Dated membership gate for entries; null = every symbol always eligible. */
+    private final java.util.function.Function<LocalDate, java.util.Set<String>> membership;
 
     public Backtester(Strategy strategy, RiskManager riskManager,
                       CostModel costModel, double startingCapital) {
+        this(strategy, riskManager, costModel, startingCapital, null);
+    }
+
+    /** With a dated-membership gate (survivorship-bias fix): entries are only
+     *  allowed in symbols that were index members ON THE SIGNAL DATE. */
+    public Backtester(Strategy strategy, RiskManager riskManager,
+                      CostModel costModel, double startingCapital,
+                      java.util.function.Function<LocalDate, java.util.Set<String>> membership) {
         this.strategy = strategy;
         this.riskManager = riskManager;
         this.costModel = costModel;
         this.startingCapital = startingCapital;
+        this.membership = membership;
     }
 
     public Result run(Map<String, List<Candle>> candlesBySymbol,
@@ -168,7 +179,8 @@ public final class Backtester {
             double weeklyPnl = equity - weekStartEquity;
 
             // ---- 3. evaluate strategy on data up to today; queue for tomorrow ----
-            MarketSnapshot snapshot = MarketSnapshot.ofPresorted(candlesBySymbol, day);
+            MarketSnapshot snapshot = MarketSnapshot.ofPresorted(candlesBySymbol, day,
+                    membership == null ? null : membership.apply(day));
             List<Signal> signals = strategy.evaluate(snapshot, portfolio);
             List<SizedOrder> approved =
                     riskManager.approve(signals, portfolio, equity, equityPeak, weeklyPnl);

@@ -17,10 +17,13 @@ public final class MarketSnapshot {
 
     private final Map<String, List<Candle>> candlesBySymbol; // ascending by date
     private final LocalDate asOf;
+    private final java.util.Set<String> tradeable; // symbols eligible for NEW entries
 
-    private MarketSnapshot(Map<String, List<Candle>> candlesBySymbol, LocalDate asOf) {
+    private MarketSnapshot(Map<String, List<Candle>> candlesBySymbol, LocalDate asOf,
+                           java.util.Set<String> tradeable) {
         this.candlesBySymbol = candlesBySymbol;
         this.asOf = asOf;
+        this.tradeable = tradeable;
     }
 
     public static MarketSnapshot of(Map<String, List<Candle>> raw, LocalDate asOf) {
@@ -31,7 +34,7 @@ public final class MarketSnapshot {
                                 .filter(c -> !c.date().isAfter(asOf))
                                 .sorted((a, b) -> a.date().compareTo(b.date()))
                                 .toList()));
-        return new MarketSnapshot(filtered, asOf);
+        return new MarketSnapshot(filtered, asOf, null);
     }
 
     /**
@@ -42,11 +45,22 @@ public final class MarketSnapshot {
      */
     public static MarketSnapshot ofPresorted(Map<String, List<Candle>> sortedBySymbol,
                                              LocalDate asOf) {
+        return ofPresorted(sortedBySymbol, asOf, null);
+    }
+
+    /**
+     * As above, additionally restricting {@link #symbols()} to the given
+     * eligible set (dated index membership — the survivorship-bias gate).
+     * {@link #candles(String)} stays unrestricted so EXITS of positions in
+     * symbols that have since left the index keep working. null = no gate.
+     */
+    public static MarketSnapshot ofPresorted(Map<String, List<Candle>> sortedBySymbol,
+                                             LocalDate asOf, java.util.Set<String> eligible) {
         Map<String, List<Candle>> filtered = new java.util.HashMap<>();
         for (Map.Entry<String, List<Candle>> e : sortedBySymbol.entrySet()) {
             filtered.put(e.getKey(), headUpTo(e.getValue(), asOf));
         }
-        return new MarketSnapshot(Collections.unmodifiableMap(filtered), asOf);
+        return new MarketSnapshot(Collections.unmodifiableMap(filtered), asOf, eligible);
     }
 
     /** The prefix of {@code sorted} with date <= asOf (binary search, view). */
@@ -75,7 +89,12 @@ public final class MarketSnapshot {
         return all.subList(Math.max(0, all.size() - n), all.size());
     }
 
+    /** Symbols a strategy may consider for NEW entries (with data, and in the
+     *  eligible membership set when one was supplied). */
     public java.util.Set<String> symbols() {
-        return candlesBySymbol.keySet();
+        if (tradeable == null) return candlesBySymbol.keySet();
+        java.util.Set<String> out = new java.util.HashSet<>(tradeable);
+        out.retainAll(candlesBySymbol.keySet());
+        return out;
     }
 }

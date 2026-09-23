@@ -81,4 +81,15 @@ Universe pivoted NIFTY 100 → **NIFTY 50 with true dated membership**. Source: 
 
 Machinery: `MembershipTable` (pure, parseCsv + membersOn), `universe history [csv]` command (wipes + loads constituents), `ConstituentsRepository.replaceAllIntervals/loadMembership`, `MarketSnapshot.ofPresorted(map, asOf, eligible)` — `symbols()` = eligible ∩ has-data while `candles()` stays open so exits work after a symbol leaves the index; `Backtester`/`SensitivitySweep`/`PaperTrader` take an optional membership function (Main wires it; loud UNGATED warning when absent). `download` now fetches every symbol EVER a member. Run config 13.
 
-**Honest-backtest rules from here:** start 2016-04-01 or later (dataset floor); run `universe history` before backtests; expect ~77-symbol downloads (ex-members incl. YESBANK/ZEEL/etc.). All prior backtest numbers (Sept 19) are tainted by survivorship and superseded. NEXT: Shrikant runs auth + download (fetches ex-member candles), then rerun v1/v2 in-sample honestly.
+**Honest-backtest rules from here:** start 2016-04-01 or later (dataset floor); run `universe history` before backtests; expect ~77-symbol downloads (ex-members incl. YESBANK/ZEEL/etc.). All prior backtest numbers (Sept 19) are tainted by survivorship and superseded. NEXT: Shrikant runs auth + download (fetches ex-member candles), then rerun v1/v2 in-sample honestly.
+
+## HONEST RESULTS — survivorship-corrected in-sample, 2016-04-01→2021-12-31 (Sept 23, 2026)
+
+Run by Claude in-cloud on the gated NIFTY 50 universe (dated membership, ex-members' candles included; HDFC gap). Reports in reports/honest-*.html.
+
+- **pullback-v1: −29.4%** (was −6.6% rigged). exp −₹34.9, PF 0.86, maxDD 36%. Ungated pullback sweep: **0/27 positive**. Dip-buying is dead at our cost level.
+- **pullback2 champion (rsi<5,hold10,b60%): −2.1%** (was +37% rigged!). Its whole in-sample edge was survivorship bias — which is exactly why it failed OOS. Instrument now consistent. pullback2 sweep: 9/27, weak rsi<4 pocket, no plateau worth trusting.
+- **breakout-v1: +35.6%**, exp ₹91/trade, PF 1.27, maxDD 15.7% — IMPROVED on honest data (momentum naturally avoids dying companies). Fails both-halves narrowly (−₹980 / +₹36.4k).
+- **breakout sweep: 27/27 POSITIVE** with clean monotone structure (40d > 50d > 60d lookback; wider trail stops better). Three configs pass ALL bars; plateau-principled pick = **breakout(50d, vol1.5, atr3.0, hold10)**: exp ₹103, 382 trades, maxDD 8.3%, both halves +. One knob away from the pre-registered blueprint Strategy B.
+
+**Strategic position: 2022–2026 was burned ONLY for the pullback family. The breakout family still holds its one sealed OOS exam.** Next decision (Shrikant's): fire breakout's one OOS shot on the chosen config, or go straight to paper trading with OOS kept sealed. No further in-sample tuning of breakout beyond this selection — every extra sweep mines the sample.

@@ -89,6 +89,9 @@ public class Main {
                       backtest [pullback|pullback2|breakout|breakout2] [start] [end]
                                                  run a strategy over stored candles and write
                                                  reports/backtest-*.html
+                      backtest [imr|rot|vrs] [start] [end]
+                                                 forward-campaign §7 sanity check on the ETF
+                                                 universe (sleeve capital, ETF costs) — ONCE
                       sweep [pullback|pullback2|breakout] [start] [end]
                                                  27-combination parameter sensitivity grid →
                                                  reports/sweep-*.html (in-sample window only!)
@@ -218,8 +221,12 @@ public class Main {
             case "pullback2" -> new com.shrikane.swingtrader.signal.strategies.PullbackStrategy(5.0, 10, 1.5, 0.60);
             case "breakout" -> new com.shrikane.swingtrader.signal.strategies.BreakoutStrategy();
             case "breakout2" -> new com.shrikane.swingtrader.signal.strategies.BreakoutStrategy(50, 1.5, 2.5, 10, 0.5);
-            default -> throw new IllegalArgumentException(
-                    "Unknown strategy: " + kind + " (use pullback, pullback2, breakout or breakout2)");
+            // the forward campaign's frozen families (docs/forward-campaign.md §4)
+            case "imr" -> new com.shrikane.swingtrader.signal.strategies.IndexMeanReversionStrategy();
+            case "rot" -> new com.shrikane.swingtrader.signal.strategies.SectorRotationStrategy();
+            case "vrs" -> new com.shrikane.swingtrader.signal.strategies.VolRegimeStrategy();
+            default -> throw new IllegalArgumentException("Unknown strategy: " + kind
+                    + " (use pullback, pullback2, breakout, breakout2, imr, rot or vrs)");
         };
     }
 
@@ -414,18 +421,43 @@ public class Main {
         var candles = data.candles();
         LocalDate start = data.start();
         LocalDate end = data.end();
+        var strategy = strategyFor(kind);
 
-        var membership = membershipGate(config);
-        if (membership == null) {
-            System.out.println("WARNING: no membership history loaded — backtest is UNGATED"
-                    + " (survivorship-biased). Run `universe history` first.");
+        java.util.function.Function<LocalDate, Set<String>> membership;
+        com.shrikane.swingtrader.risk.RiskManager risk;
+        com.shrikane.swingtrader.backtest.CostModel costs;
+        double capital;
+        var etfSleeves = java.util.Map.of("imr", config.sleeveImr(), "rot", config.sleeveRot(),
+                "vrs", config.sleeveVrs());
+        if (etfSleeves.containsKey(kind)) {
+            // forward-campaign.md §7 sanity check: the fixed ETF universe (no
+            // membership gate), exactly as the sleeve will trade — A1 sleeve
+            // risk profile, ETF costs, sleeve capital. Rails act on the sleeve.
+            System.out.println("PRE-REGISTERED SANITY CHECK (forward-campaign.md §7) — run ONCE, do not"
+                    + " iterate. Stop only on maxDD > 30%, pathological behaviour, or a bug.");
+            candles = new java.util.HashMap<>(candles);
+            candles.keySet().retainAll(EtfUniverse.SYMBOLS);
+            if (candles.isEmpty()) {
+                System.err.println("No ETF candles — run `instruments` then `download` first.");
+                System.exit(2);
+            }
+            membership = null;
+            risk = com.shrikane.swingtrader.risk.RiskManager.sleeveProfile();
+            costs = com.shrikane.swingtrader.backtest.CostModel.etf();
+            capital = etfSleeves.get(kind);
+        } else {
+            membership = membershipGate(config);
+            if (membership == null) {
+                System.out.println("WARNING: no membership history loaded — backtest is UNGATED"
+                        + " (survivorship-biased). Run `universe history` first.");
+            }
+            risk = new com.shrikane.swingtrader.risk.RiskManager();
+            costs = new com.shrikane.swingtrader.backtest.CostModel();
+            capital = config.startingCapital();
         }
 
-        var strategy = strategyFor(kind);
         var backtester = new com.shrikane.swingtrader.backtest.Backtester(
-                strategy, new com.shrikane.swingtrader.risk.RiskManager(),
-                new com.shrikane.swingtrader.backtest.CostModel(), config.startingCapital(),
-                membership);
+                strategy, risk, costs, capital, membership);
 
         System.out.println("Backtesting " + strategy.name() + " " + start + " → " + end
                 + " on " + candles.size() + " symbols ...");
@@ -444,6 +476,15 @@ public class Main {
                 + (stats.meetsExpectancyBar() ? "PASS" : "FAIL")
                 + " | trades>=150 " + (stats.meetsTradeCountBar() ? "PASS" : "FAIL")
                 + " | both halves " + (stats.meetsBothHalvesBar() ? "PASS" : "FAIL"));
+        if (etfSleeves.containsKey(kind)) {
+            double years = Math.max(1e-9, java.time.temporal.ChronoUnit.DAYS.between(
+                    result.start(), result.end()) / 365.25);
+            System.out.printf(java.util.Locale.ROOT,
+                    "§7 stop rules: maxDD %.1f%% %s | %.1f trades/year (judge vs design: IMR"
+                            + " swing, ROT ≤ ~12/yr, VRS regime flips) | kill-switch firings %d%n",
+                    stats.maxDrawdown() * 100, stats.maxDrawdown() > 0.30 ? "> 30% → STOP" : "≤ 30% ok",
+                    result.trades().size() / years, result.killSwitchFirings().size());
+        }
 
         Path reportDir = Path.of("reports");
         java.nio.file.Files.createDirectories(reportDir);

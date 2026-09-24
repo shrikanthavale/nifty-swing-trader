@@ -36,25 +36,34 @@ com.shrikane.swingtrader
 │                                      interface exists so tests fake it)
 │               ConstituentsCsv/-Downloader  NIFTY 100 membership from NSE
 │               DbUniverse             "who was in the index on date d"
+│               EtfUniverse            the forward campaign's frozen 6 ETFs
+│                                      (not membership-gated)
 │               InstrumentSync         Kite's symbol → instrument_token dump
 │
 ├── signal      The brain (pure functions — no I/O, no clocks, no randomness):
 │               Strategy               interface: (snapshot, portfolio) → signals
 │               Signal                 ENTER/EXIT + reference price, stop, rank
-│               Indicators             SMA, RSI, ATR, volume avg, highest close
+│               Indicators             SMA, RSI, ATR, volume avg, highest close,
+│                                      realized vol, median, total return
 │               strategies/
-│                 PullbackStrategy     A: RSI(2) dip in an uptrend  (default)
-│                 BreakoutStrategy     B: 50-day high + volume surge, trailing stop
+│                 PullbackStrategy     A: RSI(2) dip in an uptrend  (falsified)
+│                 BreakoutStrategy     B: 50-day high + volume surge (falsified;
+│                                      runs as the unfunded paper shadow)
+│                 IndexMeanReversion…  IMR-v1: RSI(2) dip on NIFTYBEES   (forward
+│                 SectorRotation…      ROT-v1: monthly 63d ETF leader    campaign,
+│                 VolRegime…           VRS-v1: in when vol20 < median   frozen)
+│                 DisasterStop         shared entry − 2.5×ATR(14) stop
 │
 ├── risk        The adult in the room (also pure):
 │               RiskManager            sizes positions (1% risk, 25% cap, max 4),
-│                                      weekly-loss pause, 6% kill switch
+│                                      weekly-loss pause, 6% kill switch;
+│                                      sleeveProfile() = full-sleeve sizing (A1)
 │               Portfolio, Position    account state
 │
 ├── backtest    The measuring instrument:
 │               Backtester             daily replay; fills at NEXT day's open
 │               CostModel              Zerodha CNC charges + slippage — every
-│                                      fill goes through it
+│                                      fill goes through it; etf() profile
 │               BacktestStats          expectancy, drawdown, acceptance bar
 │               HtmlReport             the report card (reports/*.html)
 │               SensitivitySweep       27-combo parameter grid → plateau or spike?
@@ -63,10 +72,16 @@ com.shrikane.swingtrader
 ├── journal     The black box recorder + paper account state:
 │               Journal (interface) / SqliteJournal / (tests: InMemoryJournal)
 │               every signal (incl. rejected + why), order lifecycle,
-│               daily equity, open paper positions
+│               daily equity, open paper positions — one namespace per
+│               SLEEVE (schema v1); LiveOrderLog = every live/dry-run order
 │
-├── executor    PaperTrader            the daily cycle, orders → journal only
-│               OrderExecutor          live Kite orders — Phase 4, still a stub
+├── executor    PaperTrader            one strategy's daily cycle, journal only
+│               SleeveCycle            all sleeves in one evening; rails on the
+│                                      total live account
+│               ForwardCampaign        the sleeve line-up (IMR/ROT/VRS + shadow)
+│               OrderExecutor          live Kite AMO orders: dry-run default,
+│                                      idempotent tags, reconcile-before-retry
+│               BrokerGateway / KiteBrokerGateway   the two Kite order calls
 │
 ├── notify      TelegramNotifier       daily summary to your phone (optional)
 │
@@ -101,9 +116,13 @@ clock, fills at next open, costs always on.
 | `download` | incremental EOD candles | **₹500/mo Connect plan** |
 | `backtest [pullback\|breakout] [start] [end]` | full backtest → reports/*.html | data |
 | `sweep [pullback\|breakout] [start] [end]` | 27-combo sensitivity grid | data |
+| `backtest [imr\|rot\|vrs] [start] [end]` | forward-campaign §7 sanity check (ETF universe, sleeve capital, ETF costs) — run ONCE | data |
 | `paper [pullback\|breakout]` | one daily paper cycle | data |
 | `paper reset-peak` | manual kill-switch re-enable | — |
-| `signals`, `live` | not implemented (Phase 4) | — |
+| `cycle` | forward campaign evening run: IMR/ROT/VRS sleeves + breakout shadow, journal only | data |
+| `live` | `cycle` + funded-sleeve orders through the executor (dry run unless `live.enabled=true`) | data; live: `auth` + static IP |
+| `live reset-peak [sleeve]` | re-enable entries after kill-switch review (default: live account) | — |
+| `signals` | not implemented | — |
 
 ## Where we are (Sept 2026)
 

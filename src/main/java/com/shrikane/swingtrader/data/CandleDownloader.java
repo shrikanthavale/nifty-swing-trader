@@ -120,6 +120,46 @@ public final class CandleDownloader {
         return new Result(symbols.size(), stored, missingToken, stale, discontinuities);
     }
 
+    /**
+     * Outcome of the ETF mini-universe download. {@code unavailable} ETFs have
+     * no token, no data on Kite, or failed to fetch — warn loudly, but they
+     * don't stop the run (ROT-v1 simply can't rank them). {@code stale} ETFs
+     * HAVE data that just isn't today's — that is a DO-NOT-TRADE condition,
+     * exactly as for stocks.
+     */
+    public record EtfResult(int candlesStored, List<String> unavailable,
+                            List<String> stale, List<String> discontinuities) {}
+
+    /**
+     * Downloads the ETF mini-universe one symbol at a time, never throwing:
+     * a missing or broken ETF must not take the stock download down with it.
+     */
+    public EtfResult downloadEtfs(List<String> etfs, LocalDate expectedDate) throws SQLException {
+        int stored = 0;
+        List<String> unavailable = new ArrayList<>();
+        List<String> stale = new ArrayList<>();
+        List<String> discontinuities = new ArrayList<>();
+        for (String etf : etfs) {
+            Result r;
+            try {
+                r = downloadAll(List.of(etf), expectedDate);
+            } catch (IOException | RuntimeException e) {
+                unavailable.add(etf + " (fetch failed: " + e.getMessage() + ")");
+                continue;
+            }
+            stored += r.candlesStored();
+            discontinuities.addAll(r.discontinuities());
+            if (!r.missingToken().isEmpty()) {
+                unavailable.add(etf + " (no instrument token — run `instruments`)");
+            } else if (candles.lastDateFor(etf).isEmpty()) {
+                unavailable.add(etf + " (no data on Kite)");
+            } else {
+                stale.addAll(r.stale());
+            }
+        }
+        return new EtfResult(stored, unavailable, stale, discontinuities);
+    }
+
     // ---------- pure helpers (unit-tested without I/O) ----------
 
     /** Inclusive date range. */

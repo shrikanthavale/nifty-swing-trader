@@ -6,6 +6,7 @@ import com.shrikane.swingtrader.auth.TokenStore;
 import com.shrikane.swingtrader.config.AppConfig;
 import com.shrikane.swingtrader.data.CandleDownloader;
 import com.shrikane.swingtrader.data.ConstituentsDownloader;
+import com.shrikane.swingtrader.data.EtfUniverse;
 import com.shrikane.swingtrader.data.InstrumentSync;
 import com.shrikane.swingtrader.data.KiteHistoricalSource;
 import com.shrikane.swingtrader.db.CandleRepository;
@@ -79,7 +80,8 @@ public class Main {
                                                  NSE, or parses a manually saved
                                                  ind_nifty100list.csv if a path is given)
                       download [config-path]     incremental EOD candle fetch for the universe
-                                                 (needs the paid Connect plan for historical data)
+                                                 plus the 6 campaign ETFs (needs the paid
+                                                 Connect plan for historical data)
                       backtest [pullback|pullback2|breakout|breakout2] [start] [end]
                                                  run a strategy over stored candles and write
                                                  reports/backtest-*.html
@@ -144,13 +146,28 @@ public class Main {
                 System.err.println("WARNING: no instrument token for " + result.missingToken()
                         + " — run the `instruments` command.");
             }
-            for (String flag : result.discontinuities()) {
+            // the forward campaign's ETF mini-universe: not membership-gated,
+            // fetched in addition; a missing ETF warns loudly but never crashes
+            System.out.println("Downloading EOD candles for " + EtfUniverse.SYMBOLS.size()
+                    + " campaign ETFs " + EtfUniverse.SYMBOLS + " ...");
+            CandleDownloader.EtfResult etfs = downloader.downloadEtfs(EtfUniverse.SYMBOLS, expected);
+            System.out.println("Stored " + etfs.candlesStored() + " new ETF candles.");
+            for (String u : etfs.unavailable()) {
+                System.err.println("WARNING — ETF UNAVAILABLE: " + u
+                        + ". ROT-v1 will not rank it; if it is NIFTYBEES, IMR/VRS cannot trade.");
+            }
+
+            List<String> stale = new java.util.ArrayList<>(result.stale());
+            stale.addAll(etfs.stale());
+            List<String> discontinuities = new java.util.ArrayList<>(result.discontinuities());
+            discontinuities.addAll(etfs.discontinuities());
+            for (String flag : discontinuities) {
                 System.out.println("REVIEW: >20% overnight move: " + flag
                         + " (corporate action? verify candles are adjusted)");
             }
-            if (!result.stale().isEmpty()) {
+            if (!stale.isEmpty()) {
                 System.err.println("STALE DATA: newest candle != " + expected + " for "
-                        + result.stale().size() + " symbols: " + result.stale());
+                        + stale.size() + " symbols: " + stale);
                 System.err.println("DO NOT TRADE on this data. (If today is an NSE holiday,"
                         + " this is expected — holiday calendar is a known TODO.)");
                 System.exit(2);

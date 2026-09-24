@@ -26,7 +26,7 @@ class CandleDownloaderTest {
     private static final LocalDate FRI = LocalDate.of(2026, 7, 10);
 
     /** In-memory fake: serves whatever candles it was given, records calls. */
-    private static final class FakeSource implements HistoricalSource {
+    private static class FakeSource implements HistoricalSource {
         final Map<String, List<Candle>> bySymbol = new HashMap<>();
         final List<String> calls = new ArrayList<>();
 
@@ -175,5 +175,38 @@ class CandleDownloaderTest {
         assertEquals(1, flags.size());
         assertTrue(flags.get(0).contains("2026-01-03"));
         assertTrue(flags.get(0).contains("-50.0%"));
+    }
+
+    @Test
+    void etfDownloadWarnsInsteadOfCrashingOnMissingOrBrokenEtfs() throws Exception {
+        try (Connection conn = Database.open(":memory:")) {
+            new InstrumentRepository(conn).upsertAll(List.of(
+                    new InstrumentRow("NIFTYBEES", 1L, "NSE", "NIFTYBEES"),
+                    new InstrumentRow("ITBEES", 2L, "NSE", "ITBEES"),
+                    new InstrumentRow("BANKBEES", 3L, "NSE", "BANKBEES"),
+                    new InstrumentRow("AUTOBEES", 4L, "NSE", "AUTOBEES")), MON);
+            FakeSource source = new FakeSource() {
+                @Override
+                public List<Candle> fetchDaily(String symbol, long token, LocalDate from, LocalDate to) {
+                    if (symbol.equals("AUTOBEES")) throw new IllegalStateException("boom");
+                    return super.fetchDaily(symbol, token, from, to);
+                }
+            };
+            source.add("NIFTYBEES", FRI, 280);
+            source.add("NIFTYBEES", MON, 281);
+            source.add("BANKBEES", FRI, 500);          // data, but not today's → stale
+            // ITBEES: token but Kite has nothing; PHARMABEES: no token at all
+
+            CandleDownloader.EtfResult result = downloader(conn, source, FRI).downloadEtfs(
+                    List.of("NIFTYBEES", "ITBEES", "BANKBEES", "PHARMABEES", "AUTOBEES"), MON);
+
+            assertEquals(3, result.candlesStored());
+            assertEquals(3, result.unavailable().size(), result.unavailable().toString());
+            assertTrue(result.unavailable().stream().anyMatch(u -> u.startsWith("ITBEES (no data")));
+            assertTrue(result.unavailable().stream().anyMatch(u -> u.startsWith("PHARMABEES (no instrument token")));
+            assertTrue(result.unavailable().stream().anyMatch(u -> u.startsWith("AUTOBEES (fetch failed")));
+            assertEquals(1, result.stale().size());
+            assertTrue(result.stale().get(0).startsWith("BANKBEES"));
+        }
     }
 }

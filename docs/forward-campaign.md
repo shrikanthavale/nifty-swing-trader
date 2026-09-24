@@ -166,3 +166,8 @@ bad happens except a skipped day.
   ₹400–600 ≈ 0.8–1.2% of total, which is accepted. The no-arg RiskManager
   used by the stock strategies is unchanged. Sanity backtests (§7) use the
   same sleeve profile so they measure what will actually trade.
+- **2026-09-24 — A2 (factual correction, before any testing):** §4's cost
+  note gave the DP charge as ₹15.93/scrip/sell; Zerodha's current published
+  rate (zerodha.com/charges, verified 2026-09-24) is ₹15.34 (₹3.5 CDSL +
+  ₹9.5 Zerodha + GST). The ETF cost profile uses ₹15.34. No strategy
+  parameter is affected.

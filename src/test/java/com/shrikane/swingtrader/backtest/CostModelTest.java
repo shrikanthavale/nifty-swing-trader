@@ -41,8 +41,8 @@ class CostModelTest {
         // buy: no STT at all → only txn + SEBI + GST + stamp ≈ 0.0187%
         assertEquals(16_000 * (0.0000307 + 1e-6) * 1.18 + 16_000 * 0.00015,
                 etf.buyCharges(16_000), 1e-9);
-        // sell: 0.001% STT + txn + SEBI + GST + ₹15.93 DP
-        assertEquals(16_000 * 0.00001 + 16_000 * (0.0000307 + 1e-6) * 1.18 + 15.93,
+        // sell: 0.001% STT + txn + SEBI + GST + ₹15.34 DP
+        assertEquals(16_000 * 0.00001 + 16_000 * (0.0000307 + 1e-6) * 1.18 + 15.34,
                 etf.sellCharges(16_000), 1e-9);
         double etfRoundTrip = etf.buyCharges(16_000) + etf.sellCharges(16_000);
         double eqRoundTrip = eq.buyCharges(16_000) + eq.sellCharges(16_000);

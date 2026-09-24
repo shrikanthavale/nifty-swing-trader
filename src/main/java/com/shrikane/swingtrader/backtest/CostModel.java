@@ -17,8 +17,8 @@ package com.shrikane.swingtrader.backtest;
  * ETF profile ({@link #etf()}, forward-campaign.md §4 note): exchange-traded
  * funds pay STT only on the SELL side and only 0.001% (vs 0.1% each way for
  * delivery equity). Exchange txn, SEBI, GST and stamp duty keep the same
- * structure; DP is ₹15.93 per scrip per sell day as written in the frozen
- * pre-registration; slippage assumption is the same. Profile selection is by
+ * structure; DP is the same ₹15.34 per scrip per sell day as equity
+ * (forward-campaign.md Amendment A2); slippage assumption is the same. Profile selection is by
  * the frozen symbol list ({@link com.shrikane.swingtrader.data.EtfUniverse}),
  * not the instruments table (Kite files ETFs under instrument_type "EQ"):
  * the three sleeves whose strategies trade only that list use {@link #etf()},
@@ -34,7 +34,7 @@ public class CostModel {
     private static final double DP_CHARGE_SELL = 15.34;
 
     private static final double ETF_STT_SELL = 0.00001;    // 0.001%, sell side only
-    private static final double ETF_DP_CHARGE_SELL = 15.93; // forward-campaign.md §3/§4
+    private static final double ETF_DP_CHARGE_SELL = DP_CHARGE_SELL; // same DP as equity (Amendment A2)
 
     private final double slippagePerSide;
     private final double sttBuy;

@@ -64,4 +64,56 @@ class IndicatorsTest {
         assertEquals(1.0, Indicators.breadthAboveSma(snap, 3), 1e-9); // SHORT excluded
         assertTrue(Double.isNaN(Indicators.breadthAboveSma(snap, 10)));
     }
+
+    /** Closes whose daily log returns alternate +a, -a, +a, ... */
+    private static List<Candle> alternating(int bars, double a) {
+        List<Candle> out = new java.util.ArrayList<>();
+        double logPrice = Math.log(100);
+        for (int i = 0; i < bars; i++) {
+            if (i > 0) logPrice += (i % 2 == 1) ? a : -a;
+            out.add(candle(i, Math.exp(logPrice), 1000));
+        }
+        return out;
+    }
+
+    @Test
+    void realizedVolIsAnnualizedSampleStdevOfLogReturns() {
+        List<Candle> candles = alternating(21, 0.01);    // 20 returns: +1%, -1%, ...
+        double expected = Math.sqrt(20 * 0.01 * 0.01 / 19) * Math.sqrt(252);
+        assertEquals(expected, Indicators.realizedVol(candles, 20), 1e-12);
+        assertTrue(Double.isNaN(Indicators.realizedVol(candles.subList(0, 20), 20)));
+    }
+
+    @Test
+    void realizedVolSeriesEndsWithTodaysValue() {
+        List<Candle> candles = alternating(30, 0.01);
+        double[] series = Indicators.realizedVolSeries(candles, 20, 10); // needs 30 bars
+        assertEquals(10, series.length);
+        assertEquals(Indicators.realizedVol(candles, 20), series[9], 1e-12);
+        assertEquals(Indicators.realizedVol(candles.subList(0, 21), 20), series[0], 1e-12);
+        assertEquals(0, Indicators.realizedVolSeries(candles, 20, 11).length);
+    }
+
+    @Test
+    void medianOddEvenAndEmpty() {
+        assertEquals(2, Indicators.median(new double[]{3, 1, 2}), 1e-12);
+        assertEquals(2.5, Indicators.median(new double[]{4, 1, 3, 2}), 1e-12);
+        assertTrue(Double.isNaN(Indicators.median(new double[0])));
+    }
+
+    @Test
+    void totalReturnOverPeriod() {
+        List<Candle> candles = List.of(candle(0, 100, 0), candle(1, 50, 0), candle(2, 110, 0));
+        assertEquals(0.10, Indicators.totalReturn(candles, 2), 1e-12);
+        assertEquals(1.20, Indicators.totalReturn(candles, 1), 1e-12);
+        assertTrue(Double.isNaN(Indicators.totalReturn(candles, 3)));
+    }
+
+    @Test
+    void barsSinceCountsBarsStrictlyAfterTheDate() {
+        List<Candle> candles = List.of(candle(0, 1, 0), candle(3, 1, 0), candle(4, 1, 0), candle(7, 1, 0));
+        assertEquals(2, Indicators.barsSince(candles, D.plusDays(3)));   // days 4 and 7
+        assertEquals(4, Indicators.barsSince(candles, D.minusDays(1)));
+        assertEquals(0, Indicators.barsSince(candles, D.plusDays(7)));
+    }
 }

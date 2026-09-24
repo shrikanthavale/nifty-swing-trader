@@ -107,4 +107,79 @@ public final class Indicators {
         }
         return eligible == 0 ? Double.NaN : (double) above / eligible;
     }
+
+    /** Trading days in a year — the annualization factor for daily volatility. */
+    public static final int TRADING_DAYS_PER_YEAR = 252;
+
+    /**
+     * Realized volatility: sample standard deviation of the last {@code period}
+     * daily log returns, annualized by ×√252. 0.15 means "15% a year" — how
+     * violently the price has been moving lately, regardless of direction.
+     * NaN if fewer than {@code period + 1} candles.
+     */
+    public static double realizedVol(List<Candle> candles, int period) {
+        double[] series = realizedVolSeries(candles, period, 1);
+        return series.length == 0 ? Double.NaN : series[0];
+    }
+
+    /**
+     * The last {@code count} values of the rolling realized-volatility series
+     * (oldest first; the final value is today's). Empty if the history is too
+     * short, i.e. fewer than {@code period + count} candles.
+     */
+    public static double[] realizedVolSeries(List<Candle> candles, int period, int count) {
+        int n = candles.size();
+        if (period < 2 || count < 1 || n < period + count) return new double[0];
+        double[] logReturns = new double[n];            // logReturns[i] = ln(c[i]/c[i-1])
+        for (int i = 1; i < n; i++) {
+            logReturns[i] = Math.log(candles.get(i).close() / candles.get(i - 1).close());
+        }
+        double annualize = Math.sqrt(TRADING_DAYS_PER_YEAR);
+        double[] out = new double[count];
+        for (int k = 0; k < count; k++) {
+            int end = n - count + k;                     // bar the value is "as of"
+            double mean = 0;
+            for (int i = end - period + 1; i <= end; i++) mean += logReturns[i];
+            mean /= period;
+            double sumSq = 0;
+            for (int i = end - period + 1; i <= end; i++) {
+                double d = logReturns[i] - mean;
+                sumSq += d * d;
+            }
+            out[k] = Math.sqrt(sumSq / (period - 1)) * annualize;
+        }
+        return out;
+    }
+
+    /** Median of the values (mean of the middle two for an even count). NaN if empty. */
+    public static double median(double[] values) {
+        if (values.length == 0) return Double.NaN;
+        double[] sorted = values.clone();
+        java.util.Arrays.sort(sorted);
+        int mid = sorted.length / 2;
+        return sorted.length % 2 == 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2.0;
+    }
+
+    /**
+     * Total return over the last {@code period} bars: close today divided by
+     * the close {@code period} bars ago, minus 1. NaN if fewer than
+     * {@code period + 1} candles.
+     */
+    public static double totalReturn(List<Candle> candles, int period) {
+        int n = candles.size();
+        if (n < period + 1) return Double.NaN;
+        return candles.get(n - 1).close() / candles.get(n - 1 - period).close() - 1.0;
+    }
+
+    /**
+     * Bars dated strictly after {@code date} — "trading days held" counted on
+     * the data's own calendar (exact, unlike Position's weekday approximation).
+     */
+    public static int barsSince(List<Candle> candles, java.time.LocalDate date) {
+        int count = 0;
+        for (int i = candles.size() - 1; i >= 0 && candles.get(i).date().isAfter(date); i--) {
+            count++;
+        }
+        return count;
+    }
 }

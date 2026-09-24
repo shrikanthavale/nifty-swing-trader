@@ -66,6 +66,7 @@ public class Main {
             case "backtest" -> backtest(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
             case "sweep" -> sweep(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
             case "paper" -> paper(args);
+            case "cycle" -> cycle();
             case "signals", "live" ->
                     System.out.println("'" + cmd + "' is not implemented yet — see docs/blueprint.md §8 roadmap.");
             default -> System.out.println("""
@@ -93,6 +94,10 @@ public class Main {
                                                  signals, queue tomorrow's orders, send the
                                                  daily summary (Telegram if configured)
                       paper reset-peak           re-enable entries after a kill-switch halt
+                      cycle                      the forward campaign's evening run: all four
+                                                 sleeves (IMR/ROT/VRS funded + breakout paper
+                                                 shadow) — fills, equity, signals, orders
+                                                 journaled, never sent to the broker
                       signals|live               not implemented yet""");
         }
     }
@@ -304,6 +309,40 @@ public class Main {
                         ? "(summary sent to Telegram)" : "(Telegram send FAILED — see above)");
             }
             if (result.aborted()) System.exit(2);
+        }
+    }
+
+    private static void cycle() throws Exception {
+        AppConfig config = AppConfig.load(DEFAULT_CONFIG);
+        runCycle(config);
+    }
+
+    /** One evening cycle over every sleeve; prints + Telegrams the summary. */
+    private static com.shrikane.swingtrader.executor.SleeveCycle.Result runCycle(AppConfig config)
+            throws Exception {
+        LoadedCandles data = loadCandles(config, null, null);
+        LocalDate expected = CandleDownloader.expectedTradingDate(ZonedDateTime.now(IST));
+        var membership = membershipGate(config);
+        if (membership == null) {
+            System.out.println("WARNING: no membership history loaded — the breakout shadow is UNGATED"
+                    + " (survivorship-biased). Run `universe history` first.");
+        }
+        try (Connection conn = Database.open(config.dbPath())) {
+            var cycle = com.shrikane.swingtrader.executor.ForwardCampaign.cycle(conn, config, membership);
+            var result = cycle.run(data.candles(), expected);
+            System.out.println(result.text());
+            notify(config, result.text());
+            if (result.aborted()) System.exit(2);
+            return result;
+        }
+    }
+
+    private static void notify(AppConfig config, String text) {
+        var notifier = new com.shrikane.swingtrader.notify.TelegramNotifier(
+                config.telegramBotToken(), config.telegramChatId());
+        if (notifier.isConfigured()) {
+            System.out.println(notifier.send(text)
+                    ? "(summary sent to Telegram)" : "(Telegram send FAILED — see above)");
         }
     }
 

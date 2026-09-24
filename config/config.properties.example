@@ -25,3 +25,12 @@ telegram.chat_id=
 
 # Starting capital in rupees (used for backtests and sizing)
 capital.starting=100000
+
+# Forward campaign (docs/forward-campaign.md §3): the live account and its
+# three funded sleeves. The remainder (capital.total minus the sleeves) is the
+# cash buffer for charges/rounding. The kill switch (6%) and weekly-loss pause
+# (3%) are judged on capital.total; each sleeve sizes against its own capital.
+capital.total=50000
+sleeve.imr=16000
+sleeve.rot=16000
+sleeve.vrs=16000

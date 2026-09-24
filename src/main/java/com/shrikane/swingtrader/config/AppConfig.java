@@ -16,7 +16,12 @@ public record AppConfig(
         int kiteRedirectPort,
         String tokenPath,
         String telegramBotToken,
-        String telegramChatId
+        String telegramChatId,
+        boolean liveEnabled,        // false = dry run: live orders journaled, never sent
+        double capitalTotal,        // the live account (forward-campaign.md §3)
+        double sleeveImr,
+        double sleeveRot,
+        double sleeveVrs
 ) {
     public static AppConfig load(String path) throws IOException {
         Properties p = new Properties();
@@ -31,7 +36,12 @@ public record AppConfig(
                 Integer.parseInt(p.getProperty("kite.redirect_port", "5000")),
                 p.getProperty("kite.token_path", "config/access_token.properties"),
                 p.getProperty("telegram.bot_token", ""),
-                p.getProperty("telegram.chat_id", "")
+                p.getProperty("telegram.chat_id", ""),
+                Boolean.parseBoolean(p.getProperty("live.enabled", "false").trim()),
+                Double.parseDouble(p.getProperty("capital.total", "50000")),
+                Double.parseDouble(p.getProperty("sleeve.imr", "16000")),
+                Double.parseDouble(p.getProperty("sleeve.rot", "16000")),
+                Double.parseDouble(p.getProperty("sleeve.vrs", "16000"))
         );
     }
 

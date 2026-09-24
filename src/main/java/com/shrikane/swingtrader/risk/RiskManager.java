@@ -13,12 +13,37 @@ import java.util.List;
  */
 public class RiskManager {
 
-    // ₹1 lakh configuration (blueprint §7)
-    private final double riskPerTradeFraction = 0.01;   // 1% of equity
-    private final double maxPositionFraction = 0.25;    // 25% of equity
-    private final int maxConcurrentPositions = 4;
+    private final double riskPerTradeFraction;          // 0 = size not cut by stop risk
+    private final double maxPositionFraction;
+    private final int maxConcurrentPositions;
     private final double killSwitchDrawdown = 0.06;     // 6% off equity peak
     private final double weeklyLossPauseFraction = 0.03; // 3% weekly loss → pause entries
+
+    /** ₹1 lakh multi-stock configuration (blueprint §7): 1% risk, 25% cap, max 4. */
+    public RiskManager() {
+        this(0.01, 0.25, 4);
+    }
+
+    private RiskManager(double riskPerTradeFraction, double maxPositionFraction,
+                        int maxConcurrentPositions) {
+        this.riskPerTradeFraction = riskPerTradeFraction;
+        this.maxPositionFraction = maxPositionFraction;
+        this.maxConcurrentPositions = maxConcurrentPositions;
+    }
+
+    /**
+     * Forward-campaign sleeve profile (forward-campaign.md Amendment A1):
+     * positions are sized to the FULL sleeve (max position 100% of the sizing
+     * equity, still limited by cash). The 1%-per-trade rail is measured
+     * against the total ₹50,000 account instead, where a 2.5×ATR stop-out on
+     * a full sleeve (≈0.8–1.2% of total) was explicitly accepted — so the
+     * stop distance does not cut the size here. Kill switch and weekly pause
+     * are the same rails as the default profile. The no-arg profile used by
+     * the stock strategies is unchanged.
+     */
+    public static RiskManager sleeveProfile() {
+        return new RiskManager(0, 1.0, 4);
+    }
 
     /** A signal the risk manager has approved and sized. */
     public record SizedOrder(Signal signal, int quantity) {}
@@ -30,10 +55,23 @@ public class RiskManager {
      */
     public List<SizedOrder> approve(List<Signal> signals, Portfolio portfolio,
                                     double equity, double equityPeak, double weeklyPnl) {
+        return approve(signals, portfolio, equity, equity, equityPeak, weeklyPnl);
+    }
+
+    /**
+     * Multi-sleeve form: sizes positions against {@code sizingEquity} (one
+     * sleeve's capital) while the kill switch and weekly pause judge the
+     * account the sleeve lives in ({@code railEquity}, {@code railPeak},
+     * {@code railWeeklyPnl} — the total live account). With sizingEquity ==
+     * railEquity this is exactly the single-account rule above.
+     */
+    public List<SizedOrder> approve(List<Signal> signals, Portfolio portfolio,
+                                    double sizingEquity, double railEquity,
+                                    double railPeak, double railWeeklyPnl) {
         List<SizedOrder> approved = new ArrayList<>();
 
-        boolean killSwitch = equity <= equityPeak * (1 - killSwitchDrawdown);
-        boolean entriesPaused = weeklyPnl <= -weeklyLossPauseFraction * equity;
+        boolean killSwitch = railEquity <= railPeak * (1 - killSwitchDrawdown);
+        boolean entriesPaused = railWeeklyPnl <= -weeklyLossPauseFraction * railEquity;
 
         // Exits always pass (and are the ONLY thing that passes under the kill switch).
         signals.stream()
@@ -61,7 +99,7 @@ public class RiskManager {
                 .toList();
 
         for (Signal s : entries) {
-            int qty = size(s, equity, portfolio.cash());
+            int qty = size(s, sizingEquity, portfolio.cash());
             if (qty > 0) approved.add(new SizedOrder(s, qty));
         }
         return approved;
@@ -71,8 +109,9 @@ public class RiskManager {
     int size(Signal s, double equity, double cash) {
         double stopDistance = s.referencePrice() - s.stopPrice();
         if (stopDistance <= 0) return 0;
-        double riskBudget = equity * riskPerTradeFraction;
-        int byRisk = (int) Math.floor(riskBudget / stopDistance);
+        int byRisk = riskPerTradeFraction > 0
+                ? (int) Math.floor(equity * riskPerTradeFraction / stopDistance)
+                : Integer.MAX_VALUE;
         int byCap = (int) Math.floor((equity * maxPositionFraction) / s.referencePrice());
         int byCash = (int) Math.floor(cash / s.referencePrice());
         return Math.max(0, Math.min(byRisk, Math.min(byCap, byCash)));

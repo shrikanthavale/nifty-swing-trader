@@ -34,3 +34,9 @@ capital.total=50000
 sleeve.imr=16000
 sleeve.rot=16000
 sleeve.vrs=16000
+
+# Live order placement (Phase 4). false = DRY RUN: `live` journals the exact
+# CNC AMO market orders it WOULD place (table live_orders) and sends nothing.
+# true additionally needs today's `auth` and a request from the static IP
+# registered in your Kite developer console.
+live.enabled=false

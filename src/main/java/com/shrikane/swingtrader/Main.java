@@ -31,7 +31,9 @@ import java.util.Set;
  *   backtest    — run a strategy over a date range               (Phase 1)
  *   signals     — compute today's signals and print them         (Phase 2)
  *   paper       — full daily cycle, orders to journal only       (Phase 3)
- *   live        — real orders (only after Phase 4 gates pass)    (Phase 4)
+ *   cycle       — all forward-campaign sleeves, journal only      (done)
+ *   live        — cycle + funded-sleeve orders to Kite (dry run
+ *                 unless live.enabled=true)                        (done)
  */
 public class Main {
 
@@ -66,8 +68,9 @@ public class Main {
             case "backtest" -> backtest(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
             case "sweep" -> sweep(strategyArg(args), dateArg(args, 1), dateArg(args, 2));
             case "paper" -> paper(args);
-            case "cycle" -> cycle();
-            case "signals", "live" ->
+            case "cycle" -> runCycle(AppConfig.load(DEFAULT_CONFIG), false);
+            case "live" -> live(args);
+            case "signals" ->
                     System.out.println("'" + cmd + "' is not implemented yet — see docs/blueprint.md §8 roadmap.");
             default -> System.out.println("""
                     nifty-swing-trader — personal swing trading system (see docs/blueprint.md)
@@ -98,7 +101,15 @@ public class Main {
                                                  sleeves (IMR/ROT/VRS funded + breakout paper
                                                  shadow) — fills, equity, signals, orders
                                                  journaled, never sent to the broker
-                      signals|live               not implemented yet""");
+                      live                       `cycle`, then routes the funded sleeves' orders
+                                                 through the executor as CNC AMO market orders.
+                                                 DRY RUN (journaled, not sent) unless
+                                                 live.enabled=true in config; the breakout shadow
+                                                 always stays paper
+                      live reset-peak [sleeve]   re-enable live entries after a kill-switch halt
+                                                 (default: the live account; or e.g.
+                                                 breakout-shadow for the paper shadow)
+                      signals                    not implemented yet""");
         }
     }
 
@@ -312,14 +323,34 @@ public class Main {
         }
     }
 
-    private static void cycle() throws Exception {
+    private static void live(String[] args) throws Exception {
         AppConfig config = AppConfig.load(DEFAULT_CONFIG);
-        runCycle(config);
+        if (args.length > 1 && args[1].equals("reset-peak")) {
+            String namespace = args.length > 2 ? args[2]
+                    : com.shrikane.swingtrader.executor.SleeveCycle.TOTAL;
+            try (Connection conn = Database.open(config.dbPath())) {
+                LocalDate today = LocalDate.now(IST);
+                new com.shrikane.swingtrader.journal.SqliteJournal(conn, namespace).setMeta(
+                        com.shrikane.swingtrader.executor.PaperTrader.META_PEAK_RESET, today.toString());
+                System.out.println("Equity peak of '" + namespace + "' reset as of " + today
+                        + " — entries re-enabled from the next cycle. Log why in your journal!");
+            }
+            return;
+        }
+        runCycle(config, true);
     }
 
-    /** One evening cycle over every sleeve; prints + Telegrams the summary. */
-    private static com.shrikane.swingtrader.executor.SleeveCycle.Result runCycle(AppConfig config)
-            throws Exception {
+    /**
+     * One evening cycle over every sleeve; with {@code routeLive}, the funded
+     * sleeves' orders then go through the OrderExecutor (dry run unless
+     * live.enabled=true). Prints + Telegrams one combined summary.
+     */
+    private static void runCycle(AppConfig config, boolean routeLive) throws Exception {
+        boolean sendOrders = routeLive && config.liveEnabled();
+        // log in BEFORE touching the ledger, so a failed login can't leave
+        // queued orders that never reach the broker
+        KiteConnect kite = sendOrders ? authenticator(config).authenticate() : null;
+
         LoadedCandles data = loadCandles(config, null, null);
         LocalDate expected = CandleDownloader.expectedTradingDate(ZonedDateTime.now(IST));
         var membership = membershipGate(config);
@@ -330,10 +361,41 @@ public class Main {
         try (Connection conn = Database.open(config.dbPath())) {
             var cycle = com.shrikane.swingtrader.executor.ForwardCampaign.cycle(conn, config, membership);
             var result = cycle.run(data.candles(), expected);
-            System.out.println(result.text());
-            notify(config, result.text());
+            StringBuilder text = new StringBuilder(result.text());
+            boolean executorFailed = false;
+
+            if (routeLive && !result.aborted()) {
+                var executor = new com.shrikane.swingtrader.executor.OrderExecutor(
+                        sendOrders ? com.shrikane.swingtrader.executor.OrderExecutor.Mode.LIVE
+                                : com.shrikane.swingtrader.executor.OrderExecutor.Mode.DRY_RUN,
+                        sendOrders ? new com.shrikane.swingtrader.executor.KiteBrokerGateway(kite) : null,
+                        new com.shrikane.swingtrader.journal.LiveOrderLog.Sqlite(conn),
+                        new com.shrikane.swingtrader.executor.OrderExecutor.Limits(config.capitalTotal(),
+                                com.shrikane.swingtrader.executor.ForwardCampaign.fundedCapital(config)));
+                var results = executor.submit(expected, result.fundedOrders(),
+                        cycle.fundedInvestedAtCost(), result.entriesBlocked());
+                cycle.cancelUnplaced(results);
+
+                text.append("\n").append(sendOrders ? "LIVE ORDERS (sent to Kite):"
+                        : "DRY RUN — live.enabled=false, nothing sent. Would place:");
+                if (results.isEmpty()) text.append("\n  none");
+                for (var r : results) {
+                    text.append("\n  ").append(r.outcome()).append(" ").append(r.order().sleeve())
+                            .append(": ").append(r.note());
+                    if (r.outcome() == com.shrikane.swingtrader.executor.OrderExecutor.Outcome.FAILED) {
+                        executorFailed = true;
+                    }
+                }
+            }
+
+            System.out.println(text);
+            notify(config, text.toString());
             if (result.aborted()) System.exit(2);
-            return result;
+            if (executorFailed) {
+                System.err.println("One or more live orders FAILED — see live_orders; the ledger"
+                        + " order was cancelled. Check the Kite order book before re-running.");
+                System.exit(3);
+            }
         }
     }
 

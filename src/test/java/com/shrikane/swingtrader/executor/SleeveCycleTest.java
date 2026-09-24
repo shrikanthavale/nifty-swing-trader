@@ -153,4 +153,22 @@ class SleeveCycleTest {
         var mon = f.cycle().run(upTo(all, MON), MON);
         assertEquals(57, mon.fundedOrders().get(0).quantity());       // still ₹16k worth
     }
+
+    @Test
+    void ordersTheExecutorRefusedAreCancelledInTheLedger() {
+        List<Candle> all = List.of(candle("NIFTYBEES", MON, 279, 280), candle("NIFTYBEES", TUE, 281, 282));
+        Fixture f = fixture(new Scripted().on(MON, Signal.Action.ENTER, "NIFTYBEES", 280, 262),
+                new Scripted(), new Scripted());
+        var mon = f.cycle().run(upTo(all, MON), MON);
+        var results = new OrderExecutor(OrderExecutor.Mode.DRY_RUN, null,
+                new com.shrikane.swingtrader.journal.LiveOrderLog.InMemory(),
+                new OrderExecutor.Limits(50_000, Map.of("a", 16_000.0)))
+                .submit(MON, mon.fundedOrders(), f.cycle().fundedInvestedAtCost(), true); // blocked
+        assertEquals(OrderExecutor.Outcome.REFUSED, results.get(0).outcome());
+        f.cycle().cancelUnplaced(results);
+        assertTrue(f.a().pendingOrders().isEmpty());
+
+        f.cycle().run(upTo(all, TUE), TUE);
+        assertTrue(f.a().openPositions().isEmpty(), "a refused order never fills in the ledger");
+    }
 }

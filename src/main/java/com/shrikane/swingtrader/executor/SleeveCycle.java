@@ -198,6 +198,20 @@ public final class SleeveCycle {
                 statuses, fundedOrders(), warnings, text);
     }
 
+    /**
+     * Cancels ledger orders the live executor refused or failed to place, so
+     * a sleeve never "fills" tomorrow an order the broker never received.
+     */
+    public void cancelUnplaced(List<OrderExecutor.Result> results) {
+        for (OrderExecutor.Result r : results) {
+            if (r.outcome() != OrderExecutor.Outcome.REFUSED
+                    && r.outcome() != OrderExecutor.Outcome.FAILED) continue;
+            sleeves.stream().filter(s -> s.id().equals(r.order().sleeve())).findFirst()
+                    .ifPresent(s -> s.journal().cancelOrder(r.order().ledgerOrderId(),
+                            "live executor " + r.outcome() + ": " + r.note()));
+        }
+    }
+
     /** Positions at entry cost per funded sleeve — the executor's exposure base. */
     public Map<String, Double> fundedInvestedAtCost() {
         Map<String, Double> out = new java.util.LinkedHashMap<>();

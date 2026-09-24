@@ -155,4 +155,14 @@ bad happens except a skipped day.
 
 ## Amendment log
 
-- *(empty — and the goal is for it to stay that way)*
+- **2026-09-24 — A1 (clarification, recorded before any strategy was tested
+  or any ETF data downloaded; clocks unaffected):** §3/§4 assume full-sleeve
+  positions (₹16,000) but did not say how that reconciles with the default
+  risk rails (1% risk per trade, 25% position cap), which were designed for
+  the multi-stock portfolio. Resolution: sleeves use an ADDITIVE RiskManager
+  profile — max position 100% of sleeve capital, i.e. positions sized to the
+  full sleeve — while the 1%-per-trade rail is measured against TOTAL account
+  capital (₹50,000): a 2.5×ATR stop-out on a ₹16,000 ETF position ≈
+  ₹400–600 ≈ 0.8–1.2% of total, which is accepted. The no-arg RiskManager
+  used by the stock strategies is unchanged. Sanity backtests (§7) use the
+  same sleeve profile so they measure what will actually trade.

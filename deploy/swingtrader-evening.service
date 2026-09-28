@@ -1,0 +1,11 @@
+[Unit]
+Description=nifty-swing-trader evening cycle (download + sleeves + live/dry-run)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=opc
+WorkingDirectory=/home/opc/nifty-swing-trader
+ExecStart=/usr/bin/bash /home/opc/nifty-swing-trader/deploy/evening.sh
+TimeoutStartSec=30min

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the swing trader evening cycle on NSE trading weekdays
+
+[Timer]
+# 18:45 IST, Mon-Fri (VM timezone is set to Asia/Kolkata by setup-vm.sh).
+# NSE holidays: download exits 2 ("stale") and nothing trades - safe, noisy.
+OnCalendar=Mon..Fri 18:45
+# if the VM was down at 18:45, run when it comes back
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
